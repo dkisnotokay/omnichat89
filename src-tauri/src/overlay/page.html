@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Omnichat89 Overlay</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: transparent;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  overflow: hidden;
+  color: #e0e0e0;
+  font-size: 14px;
+}
+
+#chat {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════
+   Show/hide toggles via CSS classes on #chat.
+   Элементы всегда в DOM, видимость через CSS.
+   Работает мгновенно для ВСЕХ сообщений.
+   ═══════════════════════════════════════════ */
+.msg-time { display: none; }
+.msg-platform-icon { display: none; }
+.msg-badge { display: none; }
+
+#chat.show-timestamps .msg-time { display: inline; }
+#chat.show-platform .msg-platform-icon { display: inline-block; }
+#chat.show-badges .msg-badge { display: inline-block; }
+
+/* --- Сообщение --- */
+.msg {
+  padding: 2px 8px;
+  line-height: 1.4;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  animation: fadeIn 0.2s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Reply / цитата --- */
+.msg-reply {
+  font-size: 0.8em;
+  color: #888;
+  padding: 2px 8px 2px 12px;
+  margin-bottom: 1px;
+  border-left: 2px solid rgba(255, 255, 255, 0.15);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.msg-reply-arrow { margin-right: 4px; opacity: 0.5; }
+.msg-reply-author { font-weight: 600; color: #e0e0e0; }
+.msg-reply-body { opacity: 0.7; }
+
+/* --- Inline message line (как в приложении) --- */
+.msg-line { display: inline; }
+
+/* --- Timestamp --- */
+.msg-time {
+  font-size: 0.75em;
+  color: #888;
+  margin-right: 4px;
+  opacity: 0.6;
+}
+
+/* --- Platform icon (SVG inline) --- */
+.msg-platform-icon {
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: middle;
+  margin-right: 3px;
+  border-radius: 2px;
+}
+
+/* --- Badges --- */
+.msg-badge {
+  height: 1.1em;
+  width: auto;
+  vertical-align: middle;
+  margin-right: 2px;
+  object-fit: contain;
+}
+.msg-badge-emoji {
+  vertical-align: middle;
+  margin-right: 2px;
+  font-size: 0.85em;
+  cursor: help;
+}
+
+/* --- Ник --- */
+.msg-nick { font-weight: 700; }
+.msg-separator { color: #888; }
+
+/* --- Текст --- */
+.msg-text { word-break: break-word; }
+
+/* --- Эмоуты --- */
+.msg-emote {
+  display: inline-block;
+  height: 1.8em;
+  width: auto;
+  vertical-align: middle;
+  margin: -2px 1px;
+  object-fit: contain;
+}
+
+/* --- Удалённое сообщение --- */
+.msg-deleted .msg-text {
+  color: #888;
+  font-style: italic;
+  opacity: 0.5;
+}
+.msg-deleted .msg-text .msg-emote {
+  display: none;
+}
+
+/* --- Системное событие (sub, raid, gift) --- */
+.msg-system {
+  border-left: 3px solid #9146ff;
+  background: rgba(145, 70, 255, 0.08);
+}
+.msg-system-banner {
+  font-size: 0.85em;
+  color: #b4a0d4;
+  padding: 2px 8px;
+  font-weight: 500;
+}
+#chat:not(.show-system-events) .msg-system { display: none; }
+
+/* --- Выделенное сообщение (highlighted) --- */
+.msg-highlighted {
+  border-left: 3px solid #755ebc;
+  background: rgba(117, 94, 188, 0.12);
+}
+
+/* --- /me (ACTION) сообщение — курсив --- */
+.msg-action .msg-text {
+  font-style: italic;
+}
+
+/* --- Скроллбар (тонкий, как в приложении) --- */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="chat" class="show-badges show-platform show-system-events"></div>
+<script>
+(function() {
+  var chatEl = document.getElementById('chat');
+  var maxMessages = 500;
+  var currentPort = window.location.port;
+
+  /* ═══════ SVG иконки платформ (как в приложении, 16×16) ═══════ */
+  var TWITCH_ICON = '<svg class="msg-platform-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><rect width="16" height="16" rx="3" fill="#9146ff"/><path d="M4.5 2L3 3.6v8.4h2.8V14l1.8-2h1.8L13 8.4V2H4.5zm7.3 6l-1.6 1.6H8.6L7 11.2V9.6H4.8V3h8v5z" fill="white"/><path d="M10.6 4.6h1v2.8h-1V4.6zM8 4.6h1v2.8H8V4.6z" fill="white"/></svg>';
+  var KICK_ICON = '<svg class="msg-platform-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><rect width="16" height="16" rx="3" fill="#53fc18"/><path d="M5 3.5h2v3.5l3-3.5h2.5L9 7.5l3.5 5H10l-3-4.5V13H5V3.5z" fill="black"/></svg>';
+
+  /* ═══════ Kick badge SVG data URIs (как в приложении) ═══════ */
+  function kickSvg(bg, path) {
+    return 'data:image/svg+xml,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18">' +
+      '<rect width="18" height="18" rx="3" fill="' + bg + '"/>' +
+      '<path d="' + path + '" fill="white"/></svg>'
+    );
+  }
+  var KICK_BADGES = {
+    broadcaster: kickSvg('#e74c3c','M4 6.5a1 1 0 011-1h4.5a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1v-5zm8 .7l2.5-1.7v7l-2.5-1.7V7.2z'),
+    moderator:   kickSvg('#2ecc71','M9 3l1.2 1.2L13 7l-1 1-1.5-1.5-1 4.5H8.5l-1-4.5L6 8 5 7l2.8-2.8L9 3zm-2 9h4v1.5a2 2 0 01-4 0V12z'),
+    vip:         kickSvg('#9b59b6','M9 4l3.5 3.5L9 14 5.5 7.5 9 4zm0 2.2L7.2 7.8 9 12l1.8-4.2L9 6.2z'),
+    og:          kickSvg('#f39c12','M9 3.5l1.8 3.6 4 .6-2.9 2.8.7 4L9 12.6l-3.6 1.9.7-4-2.9-2.8 4-.6L9 3.5z'),
+    founder:     kickSvg('#3498db','M6 4h6v7.5L9 9.5 6 11.5V4z'),
+    subscriber:  kickSvg('#1abc9c','M9 13.5l-4.2-4.2a2.5 2.5 0 013.5-3.5L9 6.5l.7-.7a2.5 2.5 0 013.5 3.5L9 13.5z'),
+    verified:    kickSvg('#3498db','M7.5 11.5l-2.5-2.5 1.2-1.2 1.3 1.3 3.8-3.8L12.5 6.5 7.5 11.5z'),
+    staff:       kickSvg('#e67e22','M11.5 4.5a3 3 0 00-2.8 2L6 9.2 4.5 7.7 3.3 8.9l2.8 2.8 1.2-1.2.5.5-1.2 1.2 1.2 1.2 1.2-1.2.5.5-1.2 1.2L9.5 15l1.2-1.2L8 11.2l2.8-2.8a3 3 0 10.7-3.9z'),
+    sub_gifter:  kickSvg('#e84393','M5 8h8v5.5a1 1 0 01-1 1H6a1 1 0 01-1-1V8zm1-2.5C6 4.7 6.7 4 7.5 4S9 4.7 9 5.5V7H6V5.5zM9 5.5V7h3V5.5C12 4.7 11.3 4 10.5 4S9 4.7 9 5.5z')
+  };
+
+  /* ═══════ Emoji-фолбэк для бейджей (когда нет OAuth / нет image_url) ═══════ */
+  var BADGE_EMOJIS = {
+    broadcaster: '\u{1F4FA}', moderator: '\u2694\uFE0F', vip: '\u{1F48E}',
+    subscriber: '\u2B50', premium: '\u{1F451}', 'bits-leader': '\u{1F4B0}',
+    'sub-gifter': '\u{1F381}', turbo: '\u26A1', partner: '\u2714\uFE0F',
+    staff: '\u{1F527}'
+  };
+
+  /* ═══════ 15 дефолтных цветов ников Twitch ═══════ */
+  var TWITCH_COLORS = [
+    '#FF0000','#0000FF','#00FF00','#B22222','#FF7F50',
+    '#9ACD32','#FF4500','#2E8B57','#DAA520','#D2691E',
+    '#5F9EA0','#1E90FF','#FF69B4','#8A2BE2','#00FF7F'
+  ];
+  function twitchDefaultColor(username) {
+    var sum = 0;
+    for (var i = 0; i < username.length; i++) sum += username.charCodeAt(i);
+    return TWITCH_COLORS[sum % TWITCH_COLORS.length];
+  }
+
+  function hexToRgb(hex) {
+    return {
+      r: parseInt(hex.slice(1,3), 16),
+      g: parseInt(hex.slice(3,5), 16),
+      b: parseInt(hex.slice(5,7), 16)
+    };
+  }
+
+  /* ═══════ Применить настройки ═══════ */
+  function applySettings(s) {
+    // Шрифт и цвет текста
+    document.body.style.fontSize = (s.fontSize || 14) + 'px';
+    document.body.style.color = s.textColor || '#e0e0e0';
+
+    // Фон (bgColor + bgOpacity)
+    var hex = s.bgColor || '#1a1a2e';
+    var rgb = hexToRgb(hex);
+    var opacity = (s.bgOpacity != null ? s.bgOpacity : 100) / 100;
+    chatEl.style.backgroundColor = 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + opacity + ')';
+
+    // Мгновенное переключение отображения для ВСЕХ сообщений
+    chatEl.classList.toggle('show-timestamps', !!s.showTimestamp);
+    chatEl.classList.toggle('show-platform', s.showPlatformIcon !== false);
+    chatEl.classList.toggle('show-badges', s.showBadges !== false);
+    chatEl.classList.toggle('show-system-events', s.showSystemEvents !== false);
+
+    // Если порт изменился — редирект на новый URL (задержка на рестарт сервера)
+    if (s.overlayPort && String(s.overlayPort) !== currentPort) {
+      setTimeout(function() {
+        window.location.href = 'http://localhost:' + s.overlayPort + '/overlay' + authQuery;
+      }, 1500);
+    }
+  }
+
+  // Извлекаем overlay token из query string для аутентификации всех запросов
+  var overlayToken = new URLSearchParams(window.location.search).get('token') || '';
+  var authQuery = '?token=' + encodeURIComponent(overlayToken);
+
+  // Загрузка начальных настроек
+  fetch('/overlay/settings' + authQuery)
+    .then(function(r) { return r.json(); })
+    .then(applySettings)
+    .catch(function() {});
+
+  // SSE стрим обновлений настроек
+  var settingsSource = new EventSource('/overlay/settings/stream' + authQuery);
+  settingsSource.onmessage = function(e) {
+    try { applySettings(JSON.parse(e.data)); } catch(_) {}
+  };
+
+  /* ═══════ Рендеринг ═══════ */
+  function escapeHtml(text) {
+    var d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+  }
+
+  function renderMessage(msg) {
+    var el = document.createElement('div');
+    var cls = 'msg';
+    if (msg.deleted) cls += ' msg-deleted';
+    var isAction = msg.event_type === 'action';
+    var isSystem = msg.event_type && msg.event_type !== 'highlighted' && msg.event_type !== 'action';
+    if (isSystem) cls += ' msg-system';
+    if (msg.event_type === 'highlighted') cls += ' msg-highlighted';
+    if (isAction) cls += ' msg-action';
+    el.className = cls;
+    if (msg.id) el.setAttribute('data-id', msg.id);
+    if (msg.username) el.setAttribute('data-username', msg.username.toLowerCase());
+    var html = '';
+
+    // Баннер системного события (sub, raid, gift)
+    if (isSystem && msg.system_message) {
+      html += '<div class="msg-system-banner">' + escapeHtml(msg.system_message) + '</div>';
+    }
+
+    // Reply (цитата)
+    if (msg.reply_to) {
+      html += '<div class="msg-reply">' +
+        '<span class="msg-reply-arrow">\u21A9</span>' +
+        '<span class="msg-reply-author">' + escapeHtml(msg.reply_to) + '</span>: ' +
+        '<span class="msg-reply-body">' + escapeHtml(msg.reply_text || '') + '</span></div>';
+    }
+
+    // Строка сообщения: показываем если есть текст или это не системное событие
+    if (msg.message || !isSystem) {
+    html += '<div class="msg-line">';
+
+    // Timestamp (всегда в DOM, видимость через CSS class)
+    var d = new Date(msg.timestamp);
+    html += '<span class="msg-time">' +
+      String(d.getHours()).padStart(2,'0') + ':' +
+      String(d.getMinutes()).padStart(2,'0') + '</span>';
+
+    // Platform icon (всегда в DOM)
+    html += (msg.platform === 'twitch') ? TWITCH_ICON : KICK_ICON;
+
+    // Badges (всегда в DOM; image → img, иначе emoji-фолбэк)
+    if (msg.badges) {
+      for (var i = 0; i < msg.badges.length; i++) {
+        var b = msg.badges[i];
+        var url = b.image_url;
+        // Kick badges: resolve из локальных SVG
+        if (!url && msg.platform === 'kick') url = KICK_BADGES[b.id] || '';
+        if (url) {
+          html += '<img class="msg-badge" src="' + escapeHtml(url) +
+            '" alt="' + escapeHtml(b.title) +
+            '" title="' + escapeHtml(b.title) + '">';
+        } else {
+          // Emoji-фолбэк (как в приложении без OAuth)
+          var emoji = BADGE_EMOJIS[b.id] || '\u{1F3F7}\uFE0F';
+          html += '<span class="msg-badge msg-badge-emoji" title="' +
+            escapeHtml(b.title) + '">' + emoji + '</span>';
+        }
+      }
+    }
+
+    // Ник
+    var nickColor = msg.color || twitchDefaultColor(msg.username || msg.display_name || '');
+    html += '<span class="msg-nick" style="color:' + escapeHtml(nickColor) + '">' +
+      escapeHtml(msg.display_name) + '</span>';
+    html += '<span class="msg-separator">' + (isAction ? ' ' : ': ') + '</span>';
+
+    // Текст + эмоуты
+    html += '<span class="msg-text">' + buildMessageHtml(msg) + '</span>';
+    html += '</div>';
+    }
+
+    el.innerHTML = html;
+    return el;
+  }
+
+  function buildMessageHtml(msg) {
+    var emotes = (msg.emotes || []).slice().sort(function(a,b){ return a.start - b.start; });
+    if (!emotes.length) return escapeHtml(msg.message);
+
+    var chars = [...msg.message];
+    var parts = [];
+    var last = 0;
+
+    for (var i = 0; i < emotes.length; i++) {
+      var em = emotes[i];
+      if (em.start > last) parts.push(escapeHtml(chars.slice(last, em.start).join('')));
+      parts.push('<img class="msg-emote" src="' + escapeHtml(em.url) +
+        '" alt="' + escapeHtml(em.code) +
+        '" title="' + escapeHtml(em.code) + '">');
+      last = em.end + 1;
+    }
+    if (last < chars.length) parts.push(escapeHtml(chars.slice(last).join('')));
+    return parts.join('');
+  }
+
+  function trimMessages() {
+    while (chatEl.children.length > maxMessages) chatEl.removeChild(chatEl.firstChild);
+  }
+
+  /* ═══════ SSE chat с автопереподключением ═══════ */
+  var sseRetry = 0;
+  function connectSSE() {
+    var source = new EventSource('/overlay/events' + authQuery);
+    source.onmessage = function(e) {
+      sseRetry = 0; // Сброс backoff при успешном сообщении
+      try {
+        chatEl.appendChild(renderMessage(JSON.parse(e.data)));
+        trimMessages();
+      } catch(_) {}
+    };
+    source.onerror = function() {
+      source.close();
+      chatEl.innerHTML = '';
+      sseRetry++;
+      var delay = Math.min(3000 * Math.pow(2, sseRetry - 1), 30000);
+      setTimeout(connectSSE, delay);
+    };
+  }
+  connectSSE();
+
+  /* ═══════ Пометить сообщение как удалённое ═══════ */
+  function markDeleted(el) {
+    if (el.classList.contains('msg-deleted')) return;
+    el.classList.add('msg-deleted');
+    var textSpan = el.querySelector('.msg-text');
+    if (textSpan) textSpan.textContent = '<сообщение удалено>';
+  }
+
+  /* ═══════ SSE control (clear/delete/clear_user) с автопереподключением ═══════ */
+  var ctrlRetry = 0;
+  function connectControl() {
+    var ctrlSource = new EventSource('/overlay/control' + authQuery);
+    ctrlSource.onmessage = function(e) {
+      ctrlRetry = 0;
+      var cmd = e.data;
+      if (cmd === 'clear') {
+        chatEl.innerHTML = '';
+      } else if (cmd.indexOf('delete:') === 0) {
+        var msgId = cmd.substring(7);
+        var el = chatEl.querySelector('[data-id="' + CSS.escape(msgId) + '"]');
+        if (el) markDeleted(el);
+      } else if (cmd.indexOf('clear_user:') === 0) {
+        var username = cmd.substring(11).toLowerCase();
+        var els = chatEl.querySelectorAll('[data-username="' + CSS.escape(username) + '"]');
+        for (var i = 0; i < els.length; i++) markDeleted(els[i]);
+      }
+    };
+    ctrlSource.onerror = function() {
+      ctrlSource.close();
+      ctrlRetry++;
+      var delay = Math.min(3000 * Math.pow(2, ctrlRetry - 1), 30000);
+      setTimeout(connectControl, delay);
+    };
+  }
+  connectControl();
+})();
+</script>
+</body>
+</html>

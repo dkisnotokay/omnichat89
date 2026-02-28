@@ -1,0 +1,19 @@
+# Normalize line endings
+* text=auto
+
+# Explicitly declare text files
+*.rs text
+*.ts text
+*.js text
+*.svelte text
+*.html text
+*.css text
+*.json text
+*.md text
+*.toml text
+
+# Binary files
+*.png binary
+*.ico binary
+*.icns binary
+*.svg text

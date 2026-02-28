@@ -1,0 +1,77 @@
+/**
+ * Глобальные стили Omnichat.
+ * CSS-переменные определяют тему и могут быть изменены через настройки.
+ */
+
+:root {
+  /* Основные цвета темы */
+  --bg-color: #1a1a2e;
+  --bg-secondary: #16213e;
+  --text-color: #e0e0e0;
+  --text-muted: #888;
+  --accent-color: #667eea;
+  --accent-hover: #764ba2;
+
+  /* Типографика */
+  --font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  --font-size: 14px;
+
+  /* Размеры */
+  --chat-padding: 8px;
+  --message-gap: 4px;
+  --border-radius: 8px;
+
+  /* Фон UI элементов (фиксирован; bgColor/bgOpacity из настроек — только для области чата) */
+  --bg-opacity: 1;
+  --bg-color-rgb: 26, 26, 46;
+}
+
+/* Сброс стилей */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: var(--font-family);
+  font-size: 14px;
+  color: var(--text-color);
+  /* Фон с поддержкой прозрачности для overlay-режима */
+  background-color: transparent;
+  /* Убираем выделение текста для overlay-режима */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Отключаем контекстное меню ПКМ во всём приложении */
+body {
+  -webkit-app-region: no-drag;
+}
+html {
+  overscroll-behavior: none;
+}
+
+/* Скроллбар в стиле чата */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}

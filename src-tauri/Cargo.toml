@@ -1,0 +1,69 @@
+[package]
+name = "omnichat"
+version = "0.1.0"
+description = "Lightweight stream chat overlay for Twitch, Kick and more"
+authors = ["dkisnotokay"]
+edition = "2021"
+
+[lib]
+name = "omnichat_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri framework
+tauri = { version = "2", features = ["tray-icon", "image-ico"] }
+tauri-plugin-opener = "2"
+tauri-plugin-clipboard-manager = "2"
+
+# Сериализация JSON
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "io-util"] }
+
+# WebSocket клиент (для Twitch IRC и Kick Pusher)
+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
+
+# Логирование
+log = "0.4"
+env_logger = "0.11"
+
+# Генерация уникальных ID для сообщений
+uuid = { version = "1", features = ["v4"] }
+
+# Async stream utilities (для WebSocket split/sink/stream)
+futures-util = "0.3"
+
+# HTTP клиент (для Twitch API: бейджи, валидация токена)
+reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls-native-roots"] }
+
+# Аудио воспроизведение (TTS)
+rodio = { version = "0.20", default-features = false, features = ["mp3"] }
+
+# Случайный выбор (TTS random voice)
+rand = "0.8"
+
+# SHA-256 для Edge TTS DRM токена (Sec-MS-GEC)
+sha2 = "0.10"
+
+# Hex encoding
+hex = "0.4"
+
+# URL encoding
+urlencoding = "2"
+
+# Безопасное хранение токенов (Windows Credential Manager / macOS Keychain / Linux Secret Service)
+keyring = { version = "3", features = ["windows-native"] }
+
+# HTTP сервер для OBS Browser Source overlay
+axum = "0.8"
+tokio-stream = { version = "0.1", features = ["sync"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
