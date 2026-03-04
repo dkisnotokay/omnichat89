@@ -10,7 +10,7 @@ Lightweight stream chat overlay for **Twitch** and **Kick** — both chats in on
 
 - **Twitch + Kick** — two chats in one app
 - **OBS Overlay** — Browser Source for your stream (localhost)
-- **TTS** — Edge TTS with 100+ voices, filters, queue, and controls
+- **TTS** — Edge TTS with multiple voices (RU/EN), filters, queue, and controls
 - **Twitch OAuth** — badges and emotes via Helix API
 - **System events** — subs, raids, gifts, highlighted messages
 - **Moderation sync** — message deletion, bans, chat clear (app + overlay)
