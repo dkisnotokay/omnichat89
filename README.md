@@ -2,6 +2,8 @@
 
 Lightweight stream chat overlay for **Twitch** and **Kick** — both chats in one window with TTS, OBS overlay, and more.
 
+> 🇷🇺 [Русская версия](README.ru.md)
+
 ![Rust](https://img.shields.io/badge/Rust-57.1%25-orange) ![Svelte](https://img.shields.io/badge/Svelte-24.3%25-red) ![TypeScript](https://img.shields.io/badge/TypeScript-12.8%25-blue) ![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6)
 
 ## Features
