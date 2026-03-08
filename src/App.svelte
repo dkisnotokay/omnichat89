@@ -65,6 +65,9 @@
   /** Флаг: идёт отключение от Kick */
   let kickDisconnecting = $state(false);
 
+  /** Флаг: ждём проверки токена Twitch перед подключением */
+  let twitchPendingAuth = $state(false);
+
   /** Сообщение об ошибке Twitch (отображается 4 секунды) */
   let twitchError = $state("");
 
@@ -108,17 +111,28 @@
       initBadgeListener();
       initTtsListeners();
 
-      // Ждём загрузки настроек и авторизации, затем авто-подключаемся к сохранённым каналам
-      Promise.all([initSettingsSync(), initAuth()]).then(() => {
-        // Twitch: если нет OAuth → подключаемся к последнему каналу
-        if (!$auth.userInfo && $settings.lastTwitchChannel) {
-          twitchInput = $settings.lastTwitchChannel;
-          connectTwitch($settings.lastTwitchChannel);
-        }
-        // Kick: всегда подключаемся к последнему каналу
+      // Загружаем настройки, затем сразу подключаемся к сохранённым каналам
+      initSettingsSync().then(() => {
+        // Kick: подключаемся сразу (не зависит от auth)
         if ($settings.lastKickChannel) {
           kickInput = $settings.lastKickChannel;
-          connectKick($settings.lastKickChannel);
+          const { slug } = parseChannelInput($settings.lastKickChannel, "kick.com", "Kick");
+          if (slug) connectKick(slug);
+        }
+        // Twitch: показываем сохранённый URL и статус ожидания
+        if ($settings.lastTwitchChannel) {
+          twitchInput = $settings.lastTwitchChannel;
+          twitchPendingAuth = true;
+        }
+      });
+
+      // Auth: инициализируем параллельно, авто-подключение OAuth Twitch через $effect (authReady)
+      // Если нет OAuth — подключаемся к сохранённому каналу после проверки токена
+      initAuth().then(() => {
+        twitchPendingAuth = false;
+        if (!$auth.userInfo && $settings.lastTwitchChannel) {
+          const { slug } = parseChannelInput($settings.lastTwitchChannel, "twitch.tv", "Twitch");
+          if (slug) connectTwitch(slug);
         }
       });
     }
@@ -144,7 +158,11 @@
       $twitchStatus === "disconnected"
     ) {
       autoConnected = true;
-      connectTwitch($auth.userInfo.login);
+      twitchPendingAuth = false;
+      const login = $auth.userInfo.login;
+      twitchInput = `https://twitch.tv/${login}`;
+      settings.update(s => ({ ...s, lastTwitchChannel: `https://twitch.tv/${login}` }));
+      connectTwitch(login);
     }
   });
 
@@ -211,7 +229,7 @@
   // Twitch handlers
   // ──────────────────────────────────────────────────────────
 
-  /** Подключиться / отключиться от Twitch (анонимный режим) */
+  /** Подключиться / отключиться от Twitch */
   async function handleTwitchConnect() {
     twitchError = "";
 
@@ -224,6 +242,11 @@
           clearAllMessages();
         }
         twitchInput = "";
+        // Если был залогинен через OAuth — тоже выходим
+        if ($auth.userInfo) {
+          autoConnected = false;
+          await logoutTwitch();
+        }
       } finally {
         loggingOut = false;
       }
@@ -234,7 +257,9 @@
         return;
       }
       if (slug) {
-        settings.update(s => ({ ...s, lastTwitchChannel: slug }));
+        const displayUrl = `https://twitch.tv/${slug}`;
+        twitchInput = displayUrl;
+        settings.update(s => ({ ...s, lastTwitchChannel: displayUrl }));
         try {
           await connectTwitch(slug);
         } catch (e) {
@@ -303,7 +328,9 @@
         return;
       }
       if (slug) {
-        settings.update(s => ({ ...s, lastKickChannel: slug }));
+        const displayUrl = `https://kick.com/${slug}`;
+        kickInput = displayUrl;
+        settings.update(s => ({ ...s, lastKickChannel: displayUrl }));
         try {
           await connectKick(slug);
         } catch (e) {
@@ -347,83 +374,59 @@
         <span class="status-text busy">{t.authorizing}</span>
       </div>
 
-    <!-- Режим: Авторизован через Twitch -->
-    {:else if $auth.userInfo}
-      <div class="connect-bar auth-bar">
+    <!-- Twitch: идёт подключение или ожидание авторизации -->
+    {:else if $twitchStatus === "connecting" || twitchPendingAuth}
+      <div class="connect-bar">
         <img class="platform-badge-icon" src={twitchIcon} alt="Twitch" />
-        <span class="auth-user">{$auth.userInfo.display_name}</span>
-
-        {#if $twitchStatus === "connecting"}
-          <span class="status-text busy">{t.connecting}</span>
-        {:else if $twitchStatus === "connected"}
-          <span class="status-dot connected"></span>
-          <span class="channel-name">#{$twitchChannel}</span>
-          <span class="msg-count">{$twitchMessageCount} {t.msgCount}</span>
-        {/if}
-
-        <button
-          class="auth-btn logout"
-          onclick={handleLogout}
-          disabled={$twitchStatus === "connecting"}
-        >{t.logout}</button>
+        <span class="status-text busy">{t.connectingTo} {twitchInput}...</span>
       </div>
 
-    <!-- Режим: Без авторизации Twitch -->
+    <!-- Twitch: ввод канала / подключён -->
     {:else}
-      <!-- Анонимное подключение: идёт подключение -->
-      {#if $twitchStatus === "connecting"}
-        <div class="connect-bar">
-          <img class="platform-badge-icon" src={twitchIcon} alt="Twitch" />
-          <span class="status-text busy">{t.connectingTo} #{twitchInput}...</span>
-        </div>
+      <div class="connect-bar">
+        <img class="platform-badge-icon" src={twitchIcon} alt="Twitch" />
+        <input
+          type="text"
+          class="channel-input"
+          class:input-error={!!twitchError}
+          placeholder={t.twitchPlaceholder}
+          bind:value={twitchInput}
+          onkeydown={handleTwitchKeydown}
+          oninput={() => { twitchError = ""; }}
+          disabled={$twitchStatus === "connected"}
+        />
+        <button
+          class="connect-btn"
+          class:connected={$twitchStatus === "connected"}
+          onclick={handleTwitchConnect}
+        >
+          {#if $twitchStatus === "connected"}
+            ✕
+          {:else}
+            →
+          {/if}
+        </button>
+      </div>
 
-      <!-- Анонимное подключение: ввод канала / управление -->
+      {#if twitchError}
+        <div class="error-bar">{twitchError}</div>
       {:else}
-        <div class="connect-bar">
-          <img class="platform-badge-icon" src={twitchIcon} alt="Twitch" />
-          <input
-            type="text"
-            class="channel-input"
-            class:input-error={!!twitchError}
-            placeholder={t.twitchPlaceholder}
-            bind:value={twitchInput}
-            onkeydown={handleTwitchKeydown}
-            oninput={() => { twitchError = ""; }}
-            disabled={$twitchStatus === "connected"}
-          />
+        <div class="status-bar">
           <button
-            class="connect-btn"
-            class:connected={$twitchStatus === "connected"}
-            onclick={handleTwitchConnect}
+            class="auth-btn login"
+            onclick={handleLogin}
+            disabled={!!$auth.userInfo || $twitchStatus === "connected"}
           >
-            {#if $twitchStatus === "connected"}
-              ✕
-            {:else}
-              →
-            {/if}
+            {$auth.userInfo ? $auth.userInfo.display_name : t.loginTwitch}
           </button>
+
+          {#if $twitchStatus === "connected"}
+            <span class="status-separator">│</span>
+            <span class="status-dot connected"></span>
+            <span>#{$twitchChannel}</span>
+            <span class="msg-count">{$twitchMessageCount} {t.msgCount}</span>
+          {/if}
         </div>
-
-        {#if twitchError}
-          <div class="error-bar">{twitchError}</div>
-        {:else}
-          <div class="status-bar">
-            <button
-              class="auth-btn login"
-              onclick={handleLogin}
-              disabled={$twitchStatus === "connected"}
-            >
-              {t.loginTwitch}
-            </button>
-
-            {#if $twitchStatus === "connected"}
-              <span class="status-separator">│</span>
-              <span class="status-dot connected"></span>
-              <span>#{$twitchChannel}</span>
-              <span class="msg-count">{$twitchMessageCount} {t.msgCount}</span>
-            {/if}
-          </div>
-        {/if}
       {/if}
     {/if}
 
@@ -631,14 +634,10 @@
   }
 
   /* --- Auth --- */
-  .auth-bar {
-    gap: 6px;
-  }
-
   .auth-user {
     font-weight: 600;
     color: #9146ff;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
   }
 
   .auth-btn {
@@ -667,7 +666,6 @@
   .auth-btn.logout {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text-muted, #888);
-    margin-left: auto;
   }
 
   .status-separator {
