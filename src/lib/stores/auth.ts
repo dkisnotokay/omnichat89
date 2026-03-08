@@ -48,6 +48,9 @@ function loadAuthFromStorage(): AuthState {
 /** Стор авторизации */
 export const auth = writable<AuthState>(loadAuthFromStorage());
 
+/** Флаг: Rust подтвердил токен, можно автоподключаться */
+export const authReady = writable<boolean>(false);
+
 /** Автосохранение в localStorage (только userInfo) */
 auth.subscribe((state) => {
   try {
@@ -85,7 +88,7 @@ export async function initAuth(): Promise<void> {
     }));
   });
 
-  // Проверяем сохранённый токен через Rust (токен хранится в auth.dat, не в localStorage)
+  // Проверяем сохранённый токен через Rust (токен хранится в keyring, не в localStorage)
   try {
     const userInfo = await invoke<TwitchUserInfo | null>("check_twitch_auth");
     if (!userInfo) {
@@ -96,6 +99,8 @@ export async function initAuth(): Promise<void> {
   } catch {
     auth.set({ userInfo: null, loading: false, error: null });
   }
+  // Rust подтвердил (или отклонил) токен — теперь безопасно автоподключаться
+  authReady.set(true);
 }
 
 /** Запустить OAuth flow (открывает браузер) */

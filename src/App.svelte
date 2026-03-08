@@ -33,7 +33,7 @@
     disconnectKick,
   } from "./lib/stores/chat";
   import { settings, applyCssVariables, initSettingsSync } from "./lib/stores/settings";
-  import { auth, initAuth, loginTwitch, logoutTwitch } from "./lib/stores/auth";
+  import { auth, authReady, initAuth, loginTwitch, logoutTwitch } from "./lib/stores/auth";
   import { initBadgeListener } from "./lib/stores/chat";
   import { ttsStatus, initTtsListeners, ttsSkip, ttsClearQueue } from "./lib/stores/tts";
   import { getStrings } from "./lib/i18n";
@@ -133,10 +133,11 @@
     }
   });
 
-  /** Автоподключение Twitch при авторизации */
+  /** Автоподключение Twitch при авторизации (только после подтверждения токена Rust) */
   $effect(() => {
     if (
       !isSettingsView &&
+      $authReady &&
       $auth.userInfo &&
       !autoConnected &&
       !loggingOut &&

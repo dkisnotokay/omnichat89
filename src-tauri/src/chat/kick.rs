@@ -481,6 +481,23 @@ pub async fn connect_and_listen(
 
     info!("Kick: подписались на chatrooms.{}.v2", chatroom_id);
 
+    // Подписываемся на канал без .v2 (модерационные события могут приходить сюда)
+    let subscribe_msg2 = serde_json::json!({
+        "event": "pusher:subscribe",
+        "data": {
+            "channel": format!("chatrooms.{}", chatroom_id)
+        }
+    });
+
+    if let Err(e) = write
+        .send(Message::Text(subscribe_msg2.to_string().into()))
+        .await
+    {
+        warn!("Kick: ошибка подписки на chatrooms.{}: {}", chatroom_id, e);
+    } else {
+        info!("Kick: подписались на chatrooms.{}", chatroom_id);
+    }
+
     // Уведомляем frontend о подключении
     let _ = app_handle.emit("kick-chat-connected", &channel_lower);
 
@@ -596,10 +613,10 @@ async fn handle_pusher_message<S>(
             };
 
             if let Ok(deleted) = serde_json::from_str::<KickMessageDeletedData>(&data_str) {
-                // Пробуем получить ID из разных мест структуры
+                // message.id — ID удалённого сообщения, deleted.id — ID самого события удаления
                 let msg_id = deleted
-                    .id
-                    .or_else(|| deleted.message.and_then(|m| m.id));
+                    .message.and_then(|m| m.id)
+                    .or(deleted.id);
                 if let Some(id) = msg_id {
                     info!("Kick: удаление сообщения {}", id);
                     let _ = app_handle.emit("chat-msg-deleted", id.clone());
@@ -771,9 +788,7 @@ async fn handle_pusher_message<S>(
         }
 
         // Остальные события игнорируем
-        _ => {
-            // info!("Kick Pusher event: {}", pusher_msg.event);
-        }
+        _ => {}
     }
 }
 
