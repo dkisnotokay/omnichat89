@@ -14,12 +14,16 @@ import { writable, derived, get } from "svelte/store";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import type { ChatMessage } from "../types";
+import { settings } from "./settings";
 
 /** Тип статуса подключения */
 type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
-/** Максимальное количество сообщений в буфере */
-const MAX_MESSAGES = 500;
+/** Лимит сообщений в буфере — из настроек (fallback 500) */
+function maxMessages(): number {
+  const limit = get(settings).maxMessages;
+  return limit >= 50 && limit <= 5000 ? limit : 500;
+}
 
 /** Максимальное число попыток переподключения */
 const MAX_RECONNECT_RETRIES = 10;
@@ -77,6 +81,10 @@ export const currentChannel = derived(
 export const messageCount = writable(0);
 export const twitchMessageCount = writable(0);
 export const kickMessageCount = writable(0);
+
+/** Число зрителей (null — оффлайн / недоступно / не подключены) */
+export const twitchViewers = writable<number | null>(null);
+export const kickViewers = writable<number | null>(null);
 
 /** Очистить все сообщения (приложение + OBS overlay) */
 export function clearAllMessages() {
@@ -195,17 +203,18 @@ export async function initChatListeners() {
   // ── Общее: новые сообщения (от обеих платформ) ──
   await listen<ChatMessage>("chat-message", (event) => {
     const msg = event.payload;
+    const limit = maxMessages();
     messages.update((msgs) => {
       const updated = [...msgs, msg];
-      if (updated.length > MAX_MESSAGES) {
+      if (updated.length > limit) {
         // Подсчитываем удаляемые сообщения для корректировки счётчиков
-        const trimmed = updated.slice(0, updated.length - MAX_MESSAGES);
+        const trimmed = updated.slice(0, updated.length - limit);
         for (const m of trimmed) {
           if (m.platform === "twitch") twitchMessageCount.update((n) => Math.max(0, n - 1));
           else if (m.platform === "kick") kickMessageCount.update((n) => Math.max(0, n - 1));
         }
         messageCount.update((n) => Math.max(0, n - trimmed.length));
-        return updated.slice(updated.length - MAX_MESSAGES);
+        return updated.slice(updated.length - limit);
       }
       return updated;
     });
@@ -227,6 +236,7 @@ export async function initChatListeners() {
 
   await listen<string>("chat-disconnected", () => {
     twitchStatus.set("disconnected");
+    twitchViewers.set(null);
     // Авто-реконнект только при неожиданном обрыве
     if (!_twitchManualDisconnect) {
       scheduleTwitchReconnect();
@@ -255,6 +265,7 @@ export async function initChatListeners() {
 
   await listen<string>("kick-chat-disconnected", () => {
     kickStatus.set("disconnected");
+    kickViewers.set(null);
     if (!_kickManualDisconnect) {
       scheduleKickReconnect();
     }
@@ -278,18 +289,34 @@ export async function initChatListeners() {
   });
 
   // ── Модерация: очистка сообщений пользователя (CLEARCHAT с username) ──
-  await listen<string>("chat-user-cleared", (event) => {
-    const username = event.payload.toLowerCase();
+  // Payload содержит платформу, чтобы бан на одной платформе не задевал
+  // одноимённого пользователя на другой.
+  await listen<{ platform: string; username: string }>("chat-user-cleared", (event) => {
+    const { platform, username } = event.payload;
+    const uname = username.toLowerCase();
     messages.update((msgs) =>
       msgs.map((m) =>
-        m.username.toLowerCase() === username ? { ...m, deleted: true } : m
+        m.platform === platform && m.username.toLowerCase() === uname
+          ? { ...m, deleted: true }
+          : m
       )
     );
   });
 
+  // ── Счётчик зрителей (от фоновых поллеров Rust) ──
+  await listen<{ platform: string; viewers: number | null }>("viewer-count", (event) => {
+    const { platform, viewers } = event.payload;
+    if (platform === "twitch") twitchViewers.set(viewers);
+    else if (platform === "kick") kickViewers.set(viewers);
+  });
+
   // ── Модерация: полная очистка чата (CLEARCHAT без username / Kick clear) ──
-  await listen<string>("chat-cleared", () => {
-    messages.update((msgs) => msgs.map((m) => ({ ...m, deleted: true })));
+  // Payload — платформа ("twitch"/"kick"): очистка Twitch не трогает Kick и наоборот.
+  await listen<string>("chat-cleared", (event) => {
+    const platform = event.payload;
+    messages.update((msgs) =>
+      msgs.map((m) => (m.platform === platform ? { ...m, deleted: true } : m))
+    );
   });
 }
 

@@ -27,3 +27,4 @@ npm-debug.log*
 # Internal docs (keep locally, exclude from GitHub)
 docs/
 CLAUDE.md
+.claude/

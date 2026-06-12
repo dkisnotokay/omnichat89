@@ -23,12 +23,25 @@ pub struct AppSettings {
     pub show_badges: bool,
     pub show_platform_icon: bool,
     pub show_system_events: bool,
+    pub show_viewer_count: bool,
     pub max_messages: u32,
     pub always_on_top: bool,
     pub bg_opacity: u32,
     pub app_bg_opacity: u32,
     pub text_color: String,
     pub bg_color: String,
+
+    // --- Шрифт и эффекты ---
+    /// Название шрифта (пусто = дефолтный Segoe UI)
+    pub font_family: String,
+    /// Насыщенность шрифта (400/500/600/700)
+    pub font_weight: u32,
+    /// Эффект текста: "none" | "outline" | "shadow"
+    pub text_effect: String,
+    /// Анимация появления сообщений: "none" | "fade" | "slide"
+    pub msg_animation: String,
+    /// Авто-скрытие сообщений в OBS overlay (секунды, 0 = не скрывать)
+    pub overlay_hide_delay: u32,
 
     // --- Language ---
     pub language: String,
@@ -85,12 +98,19 @@ impl Default for AppSettings {
             show_badges: true,
             show_platform_icon: true,
             show_system_events: true,
+            show_viewer_count: true,
             max_messages: 500,
             always_on_top: false,
             bg_opacity: 100,
             app_bg_opacity: 100,
             text_color: "#e0e0e0".to_string(),
             bg_color: "#1a1a2e".to_string(),
+
+            font_family: String::new(),
+            font_weight: 400,
+            text_effect: "none".to_string(),
+            msg_animation: "fade".to_string(),
+            overlay_hide_delay: 0,
 
             language: "ru".to_string(),
 
@@ -173,6 +193,7 @@ impl AppSettings {
             word_filter: parse_list(&self.tts_word_filter),
             blacklist: parse_list(&self.tts_blacklist),
             whitelist: parse_list(&self.tts_whitelist),
+            language: self.language.clone(),
         }
     }
 }

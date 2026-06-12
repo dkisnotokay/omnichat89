@@ -24,6 +24,8 @@
     kickChannel,
     twitchMessageCount,
     kickMessageCount,
+    twitchViewers,
+    kickViewers,
     messages,
     clearAllMessages,
     initChatListeners,
@@ -77,6 +79,22 @@
   /** Таймер автоочистки ошибок */
   let twitchErrorTimer: ReturnType<typeof setTimeout> | null = null;
   let kickErrorTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Флаг: очередь TTS только что очищена (фидбек на кнопке) */
+  let ttsClearedFlash = $state(false);
+  let ttsClearedTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Очистить очередь TTS с визуальным подтверждением */
+  async function handleTtsClear() {
+    try {
+      await ttsClearQueue();
+      ttsClearedFlash = true;
+      if (ttsClearedTimer) clearTimeout(ttsClearedTimer);
+      ttsClearedTimer = setTimeout(() => { ttsClearedFlash = false; }, 1500);
+    } catch (e) {
+      console.error("Failed to clear TTS queue:", e);
+    }
+  }
 
   /** Показать ошибку Twitch на 4 секунды */
   function showTwitchError(msg: string) {
@@ -301,6 +319,11 @@
     }
   }
 
+  /** Форматировать число зрителей с разделителями тысяч */
+  function formatViewers(n: number): string {
+    return n.toLocaleString($settings.language === "en" ? "en-US" : "ru-RU");
+  }
+
   // ──────────────────────────────────────────────────────────
   // Kick handlers
   // ──────────────────────────────────────────────────────────
@@ -424,6 +447,9 @@
             <span class="status-separator">│</span>
             <span class="status-dot connected"></span>
             <span>#{$twitchChannel}</span>
+            {#if $settings.showViewerCount && $twitchViewers != null}
+              <span class="viewer-count">👁 {formatViewers($twitchViewers)}</span>
+            {/if}
             <span class="msg-count">{$twitchMessageCount} {t.msgCount}</span>
           {/if}
         </div>
@@ -481,6 +507,9 @@
         <div class="status-bar">
           <span class="status-dot connected"></span>
           <span>#{$kickChannel}</span>
+          {#if $settings.showViewerCount && $kickViewers != null}
+            <span class="viewer-count">👁 {formatViewers($kickViewers)}</span>
+          {/if}
           <span class="msg-count">{$kickMessageCount} {t.msgCount}</span>
         </div>
       {/if}
@@ -498,7 +527,14 @@
         {/if}
         <div class="tts-buttons">
           <button class="tts-btn" onclick={() => ttsSkip()}>{t.ttsSkip}</button>
-          <button class="tts-btn" onclick={() => ttsClearQueue()}>{t.ttsClear}</button>
+          <button
+            class="tts-btn"
+            class:cleared={ttsClearedFlash}
+            disabled={ttsClearedFlash}
+            onclick={handleTtsClear}
+          >
+            {ttsClearedFlash ? t.ttsCleared : t.ttsClear}
+          </button>
         </div>
       </div>
     {/if}
@@ -622,6 +658,11 @@
     white-space: nowrap;
   }
 
+  .viewer-count {
+    white-space: nowrap;
+    color: #2ecc71;
+  }
+
   .status-text.busy {
     font-size: 0.85rem;
     color: var(--text-muted, #888);
@@ -735,5 +776,12 @@
   .tts-btn:hover {
     background: rgba(255, 255, 255, 0.14);
     color: var(--text-color, #e0e0e0);
+  }
+
+  /* Подтверждение очистки очереди TTS */
+  .tts-btn.cleared {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    cursor: default;
   }
 </style>

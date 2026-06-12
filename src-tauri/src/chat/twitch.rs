@@ -32,6 +32,8 @@ pub struct TwitchState {
     pub current_channel: Arc<Mutex<Option<String>>>,
     /// Handle фоновой задачи для принудительной остановки
     pub task_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    /// Handle задачи опроса числа зрителей
+    pub viewer_task: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
 }
 
 impl Default for TwitchState {
@@ -40,6 +42,7 @@ impl Default for TwitchState {
             should_stop: Arc::new(AtomicBool::new(false)),
             current_channel: Arc::new(Mutex::new(None)),
             task_handle: Arc::new(Mutex::new(None)),
+            viewer_task: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -820,20 +823,23 @@ fn handle_clearchat(raw: &str, app_handle: &tauri::AppHandle) {
         .and_then(|(_, v)| v.parse::<u64>().ok());
 
     if let Some(username) = target_user {
-        // Удаление сообщений конкретного пользователя
+        // Удаление сообщений конкретного пользователя (только Twitch)
         info!("CLEARCHAT: удаление сообщений пользователя {}", username);
-        let _ = app_handle.emit("chat-user-cleared", &username);
+        let _ = app_handle.emit(
+            "chat-user-cleared",
+            serde_json::json!({ "platform": "twitch", "username": username }),
+        );
         // Отправляем в OBS overlay
         if let Some(overlay) = app_handle.try_state::<crate::overlay::OverlayState>() {
-            let _ = overlay.command_tx.send(format!("clear_user:{}", username));
+            let _ = overlay.command_tx.send(format!("clear_user:twitch:{}", username));
         }
     } else {
-        // Очистка всего чата
-        info!("CLEARCHAT: полная очистка чата");
-        let _ = app_handle.emit("chat-cleared", "");
+        // Очистка всего чата — только сообщения Twitch (Kick не трогаем)
+        info!("CLEARCHAT: полная очистка чата Twitch");
+        let _ = app_handle.emit("chat-cleared", "twitch");
         // Отправляем в OBS overlay
         if let Some(overlay) = app_handle.try_state::<crate::overlay::OverlayState>() {
-            let _ = overlay.command_tx.send("clear".to_string());
+            let _ = overlay.command_tx.send("clear:twitch".to_string());
         }
     }
 }

@@ -12,6 +12,7 @@ export interface I18nStrings {
   settings: string;
   minimize: string;
   close: string;
+  clearChat: string;
 
   // Settings sections
   langSection: string;
@@ -29,6 +30,22 @@ export interface I18nStrings {
   bgOpacity: string;
   textColor: string;
   bgColor: string;
+  fontFamily: string;
+  fontFamilyHint: string;
+  fontWeight: string;
+  weightNormal: string;
+  weightMedium: string;
+  weightSemibold: string;
+  weightBold: string;
+  textEffect: string;
+  textEffectHint: string;
+  effectNone: string;
+  effectOutline: string;
+  effectShadow: string;
+  msgAnimation: string;
+  animNone: string;
+  animFade: string;
+  animSlide: string;
 
   // Display
   showTimestamp: string;
@@ -37,6 +54,8 @@ export interface I18nStrings {
   platformIcon: string;
   showSystemEvents: string;
   showSystemEventsHint: string;
+  showViewerCount: string;
+  showViewerCountHint: string;
   readHighlighted: string;
 
   // Window
@@ -82,6 +101,10 @@ export interface I18nStrings {
   copyUrl: string;
   obsHint: string;
   obsDimensions: string;
+  overlayHideDelay: string;
+  overlayHideDelayHint: string;
+  hideDelayOff: string;
+  secUnit: string;
 
   // Footer
   resetSettings: string;
@@ -97,6 +120,7 @@ export interface I18nStrings {
   ttsQueue: string;
   ttsSkip: string;
   ttsClear: string;
+  ttsCleared: string;
 
   // Placeholders
   twitchPlaceholder: string;
@@ -117,6 +141,7 @@ const ru: I18nStrings = {
   settings: "Настройки",
   minimize: "Свернуть",
   close: "Закрыть",
+  clearChat: "Очистить чат",
 
   langSection: "Язык / Language",
   appearance: "Внешний вид",
@@ -132,6 +157,22 @@ const ru: I18nStrings = {
   bgOpacity: "Непрозрачность фона (Overlay)",
   textColor: "Цвет текста",
   bgColor: "Цвет фона",
+  fontFamily: "Шрифт",
+  fontFamilyHint: "Пустое поле — шрифт по умолчанию",
+  fontWeight: "Насыщенность шрифта",
+  weightNormal: "Обычный",
+  weightMedium: "Средний",
+  weightSemibold: "Полужирный",
+  weightBold: "Жирный",
+  textEffect: "Эффект текста",
+  textEffectHint: "Обводка/тень улучшают читаемость в OBS",
+  effectNone: "Нет",
+  effectOutline: "Обводка",
+  effectShadow: "Тень",
+  msgAnimation: "Анимация сообщений",
+  animNone: "Нет",
+  animFade: "Появление",
+  animSlide: "Выезд слева",
 
   showTimestamp: "Показывать время",
   showBadges: "Показывать бейджи",
@@ -139,6 +180,8 @@ const ru: I18nStrings = {
   platformIcon: "Иконка платформы",
   showSystemEvents: "Показывать системные события",
   showSystemEventsHint: "Подписки, рейды, подарки",
+  showViewerCount: "Счётчик зрителей",
+  showViewerCountHint: "Twitch — только при авторизации",
   readHighlighted: "Озвучивать выделенные сообщения",
 
   alwaysOnTop: "Поверх окон",
@@ -178,6 +221,10 @@ const ru: I18nStrings = {
   copyUrl: "Копировать URL",
   obsHint: "Вставьте этот URL в OBS → Sources → Browser",
   obsDimensions: "Рекомендуемый размер: 400 × 600 px",
+  overlayHideDelay: "Скрывать сообщения через",
+  overlayHideDelayHint: "Только для OBS overlay, применяется к новым сообщениям",
+  hideDelayOff: "выкл",
+  secUnit: "с",
 
   resetSettings: "Сбросить настройки",
 
@@ -191,6 +238,7 @@ const ru: I18nStrings = {
   ttsQueue: "В очереди",
   ttsSkip: "⏭ Пропустить",
   ttsClear: "🗑 Очистить",
+  ttsCleared: "✓ Очищено",
 
   twitchPlaceholder: "twitch.tv/channel или имя",
   kickPlaceholder: "kick.com/channel или имя",
@@ -208,6 +256,7 @@ const en: I18nStrings = {
   settings: "Settings",
   minimize: "Minimize",
   close: "Close",
+  clearChat: "Clear chat",
 
   langSection: "Language",
   appearance: "Appearance",
@@ -223,6 +272,22 @@ const en: I18nStrings = {
   bgOpacity: "Background opacity (Overlay)",
   textColor: "Text color",
   bgColor: "Background color",
+  fontFamily: "Font",
+  fontFamilyHint: "Leave empty for default font",
+  fontWeight: "Font weight",
+  weightNormal: "Normal",
+  weightMedium: "Medium",
+  weightSemibold: "Semibold",
+  weightBold: "Bold",
+  textEffect: "Text effect",
+  textEffectHint: "Outline/shadow improve readability in OBS",
+  effectNone: "None",
+  effectOutline: "Outline",
+  effectShadow: "Shadow",
+  msgAnimation: "Message animation",
+  animNone: "None",
+  animFade: "Fade in",
+  animSlide: "Slide in",
 
   showTimestamp: "Show timestamp",
   showBadges: "Show badges",
@@ -230,6 +295,8 @@ const en: I18nStrings = {
   platformIcon: "Platform icon",
   showSystemEvents: "Show system events",
   showSystemEventsHint: "Subs, raids, gifts",
+  showViewerCount: "Viewer count",
+  showViewerCountHint: "Twitch requires login",
   readHighlighted: "Read highlighted messages",
 
   alwaysOnTop: "Always on top",
@@ -269,6 +336,10 @@ const en: I18nStrings = {
   copyUrl: "Copy URL",
   obsHint: "Paste this URL in OBS → Sources → Browser",
   obsDimensions: "Recommended size: 400 × 600 px",
+  overlayHideDelay: "Hide messages after",
+  overlayHideDelayHint: "OBS overlay only, applies to new messages",
+  hideDelayOff: "off",
+  secUnit: "s",
 
   resetSettings: "Reset settings",
 
@@ -282,6 +353,7 @@ const en: I18nStrings = {
   ttsQueue: "Queue",
   ttsSkip: "⏭ Skip",
   ttsClear: "🗑 Clear",
+  ttsCleared: "✓ Cleared",
 
   twitchPlaceholder: "twitch.tv/channel or name",
   kickPlaceholder: "kick.com/channel or name",

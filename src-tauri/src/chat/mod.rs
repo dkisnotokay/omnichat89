@@ -12,6 +12,7 @@ pub mod badges;
 pub mod kick;
 pub mod message;
 pub mod twitch;
+pub mod viewers;
 
 use std::sync::OnceLock;
 

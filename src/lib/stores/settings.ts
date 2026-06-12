@@ -18,12 +18,25 @@ export interface AppSettings {
   showBadges: boolean;
   showPlatformIcon: boolean;
   showSystemEvents: boolean;
+  showViewerCount: boolean;
   maxMessages: number;
   alwaysOnTop: boolean;
   bgOpacity: number;
   appBgOpacity: number;
   textColor: string;
   bgColor: string;
+
+  // --- Шрифт и эффекты ---
+  /** Название шрифта (пусто = дефолтный) */
+  fontFamily: string;
+  /** Насыщенность шрифта (400/500/600/700) */
+  fontWeight: number;
+  /** Эффект текста: none | outline | shadow */
+  textEffect: "none" | "outline" | "shadow";
+  /** Анимация появления сообщений: none | fade | slide */
+  msgAnimation: "none" | "fade" | "slide";
+  /** Авто-скрытие сообщений в OBS overlay (сек, 0 = не скрывать) */
+  overlayHideDelay: number;
 
   // --- Язык интерфейса ---
   language: "ru" | "en";
@@ -69,12 +82,19 @@ export const defaultSettings: AppSettings = {
   showBadges: true,
   showPlatformIcon: true,
   showSystemEvents: true,
+  showViewerCount: true,
   maxMessages: 500,
   alwaysOnTop: false,
   bgOpacity: 100,
   appBgOpacity: 100,
   textColor: "#e0e0e0",
   bgColor: "#1a1a2e",
+
+  fontFamily: "",
+  fontWeight: 400,
+  textEffect: "none",
+  msgAnimation: "fade",
+  overlayHideDelay: 0,
 
   language: "ru",
 
@@ -189,6 +209,28 @@ export function applyCssVariables(s: AppSettings): void {
   const root = document.documentElement;
   root.style.setProperty("--font-size", `${s.fontSize}px`);
   root.style.setProperty("--text-color", s.textColor);
+
+  // Шрифт и эффекты — применяются только к области чата (--chat-* переменные)
+  const defaultFont = `"Segoe UI", Tahoma, Geneva, Verdana, sans-serif`;
+  root.style.setProperty(
+    "--chat-font-family",
+    s.fontFamily ? `"${s.fontFamily}", ${defaultFont}` : defaultFont
+  );
+  root.style.setProperty("--chat-font-weight", String(s.fontWeight || 400));
+  root.style.setProperty("--chat-text-shadow", textEffectCss(s.textEffect));
+
   // Обновить lang атрибут HTML для screen readers и spellcheck
   root.lang = s.language;
+}
+
+/** CSS text-shadow для выбранного эффекта текста */
+export function textEffectCss(effect: string): string {
+  switch (effect) {
+    case "outline":
+      return "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000";
+    case "shadow":
+      return "0 1px 3px rgba(0, 0, 0, 0.9)";
+    default:
+      return "none";
+  }
 }

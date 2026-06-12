@@ -9,6 +9,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { settings } from "../stores/settings";
+  import { clearAllMessages } from "../stores/chat";
   import { getStrings } from "../i18n";
 
   const appWindow = getCurrentWindow();
@@ -77,6 +78,13 @@
 <div class="title-bar" data-tauri-drag-region>
   <span class="title" data-tauri-drag-region>Omnichat89</span>
   <div class="title-buttons">
+    <button
+      class="title-btn"
+      onclick={() => clearAllMessages()}
+      title={t.clearChat}
+    >
+      🗑
+    </button>
     <button
       class="settings-btn"
       onclick={openSettings}

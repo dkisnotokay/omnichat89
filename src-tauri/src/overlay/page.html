@@ -42,12 +42,26 @@ body {
   line-height: 1.4;
   word-wrap: break-word;
   overflow-wrap: break-word;
-  animation: fadeIn 0.2s ease-in;
 }
+
+/* Анимация появления — класс на #chat из настроек (msgAnimation) */
+#chat.anim-fade .msg { animation: fadeIn 0.25s ease-out; }
+#chat.anim-slide .msg { animation: slideIn 0.25s ease-out; }
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Авто-скрытие сообщения (overlayHideDelay) */
+.msg.msg-fading {
+  opacity: 0;
+  transition: opacity 0.6s ease-out;
 }
 
 /* --- Reply / цитата --- */
@@ -158,12 +172,14 @@ body {
 </style>
 </head>
 <body>
-<div id="chat" class="show-badges show-platform show-system-events"></div>
+<div id="chat" class="show-badges show-platform show-system-events anim-fade"></div>
 <script>
 (function() {
   var chatEl = document.getElementById('chat');
   var maxMessages = 500;
+  var hideDelayMs = 0; // авто-скрытие сообщений (0 = выключено)
   var currentPort = window.location.port;
+  var DEFAULT_FONT = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
 
   /* ═══════ SVG иконки платформ (как в приложении, 16×16) ═══════ */
   var TWITCH_ICON = '<svg class="msg-platform-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><rect width="16" height="16" rx="3" fill="#9146ff"/><path d="M4.5 2L3 3.6v8.4h2.8V14l1.8-2h1.8L13 8.4V2H4.5zm7.3 6l-1.6 1.6H8.6L7 11.2V9.6H4.8V3h8v5z" fill="white"/><path d="M10.6 4.6h1v2.8h-1V4.6zM8 4.6h1v2.8H8V4.6z" fill="white"/></svg>';
@@ -222,6 +238,33 @@ body {
     // Шрифт и цвет текста
     document.body.style.fontSize = (s.fontSize || 14) + 'px';
     document.body.style.color = s.textColor || '#e0e0e0';
+    document.body.style.fontFamily = s.fontFamily
+      ? '"' + s.fontFamily + '", ' + DEFAULT_FONT
+      : DEFAULT_FONT;
+    document.body.style.fontWeight = String(s.fontWeight || 400);
+
+    // Эффект текста (обводка/тень)
+    var shadow = 'none';
+    if (s.textEffect === 'outline') {
+      shadow = '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000';
+    } else if (s.textEffect === 'shadow') {
+      shadow = '0 1px 3px rgba(0,0,0,0.9)';
+    }
+    chatEl.style.textShadow = shadow;
+
+    // Анимация появления сообщений
+    var anim = s.msgAnimation || 'fade';
+    chatEl.classList.toggle('anim-fade', anim === 'fade');
+    chatEl.classList.toggle('anim-slide', anim === 'slide');
+
+    // Авто-скрытие сообщений (секунды → мс)
+    hideDelayMs = (s.overlayHideDelay || 0) * 1000;
+
+    // Лимит сообщений из настроек
+    if (s.maxMessages >= 50 && s.maxMessages <= 5000) {
+      maxMessages = s.maxMessages;
+      trimMessages();
+    }
 
     // Фон (bgColor + bgOpacity)
     var hex = s.bgColor || '#1a1a2e';
@@ -278,6 +321,7 @@ body {
     el.className = cls;
     if (msg.id) el.setAttribute('data-id', msg.id);
     if (msg.username) el.setAttribute('data-username', msg.username.toLowerCase());
+    if (msg.platform) el.setAttribute('data-platform', msg.platform);
     var html = '';
 
     // Баннер системного события (sub, raid, gift)
@@ -365,6 +409,16 @@ body {
     while (chatEl.children.length > maxMessages) chatEl.removeChild(chatEl.firstChild);
   }
 
+  /* ═══════ Авто-скрытие: плавно скрыть и удалить сообщение ═══════ */
+  function scheduleHide(el) {
+    setTimeout(function() {
+      el.classList.add('msg-fading');
+      setTimeout(function() {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }, 650);
+    }, hideDelayMs);
+  }
+
   /* ═══════ SSE chat с автопереподключением ═══════ */
   var sseRetry = 0;
   function connectSSE() {
@@ -372,7 +426,9 @@ body {
     source.onmessage = function(e) {
       sseRetry = 0; // Сброс backoff при успешном сообщении
       try {
-        chatEl.appendChild(renderMessage(JSON.parse(e.data)));
+        var msgEl = renderMessage(JSON.parse(e.data));
+        chatEl.appendChild(msgEl);
+        if (hideDelayMs > 0) scheduleHide(msgEl);
         trimMessages();
       } catch(_) {}
     };
@@ -402,14 +458,26 @@ body {
       ctrlRetry = 0;
       var cmd = e.data;
       if (cmd === 'clear') {
+        // Полная ручная очистка (кнопка в приложении / выход)
         chatEl.innerHTML = '';
+      } else if (cmd.indexOf('clear:') === 0) {
+        // Модераторская очистка чата одной платформы (clear:twitch / clear:kick)
+        var platform = cmd.substring(6);
+        var pEls = chatEl.querySelectorAll('[data-platform="' + CSS.escape(platform) + '"]');
+        for (var p = 0; p < pEls.length; p++) markDeleted(pEls[p]);
       } else if (cmd.indexOf('delete:') === 0) {
         var msgId = cmd.substring(7);
         var el = chatEl.querySelector('[data-id="' + CSS.escape(msgId) + '"]');
         if (el) markDeleted(el);
       } else if (cmd.indexOf('clear_user:') === 0) {
-        var username = cmd.substring(11).toLowerCase();
-        var els = chatEl.querySelectorAll('[data-username="' + CSS.escape(username) + '"]');
+        // Формат: clear_user:<platform>:<username>
+        var rest = cmd.substring(11);
+        var sepIdx = rest.indexOf(':');
+        var userPlatform = sepIdx > 0 ? rest.slice(0, sepIdx) : '';
+        var username = (sepIdx > 0 ? rest.slice(sepIdx + 1) : rest).toLowerCase();
+        var sel = '[data-username="' + CSS.escape(username) + '"]';
+        if (userPlatform) sel = '[data-platform="' + CSS.escape(userPlatform) + '"]' + sel;
+        var els = chatEl.querySelectorAll(sel);
         for (var i = 0; i < els.length; i++) markDeleted(els[i]);
       }
     };

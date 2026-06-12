@@ -172,6 +172,85 @@
           <span class="color-hex">{currentSettings.bgColor}</span>
         </div>
       </div>
+
+      <!-- Шрифт: ввод с подсказками системных шрифтов -->
+      <div class="setting-row">
+        <label class="setting-label" for="fontFamily">
+          {t.fontFamily}
+          <span class="setting-hint">{t.fontFamilyHint}</span>
+        </label>
+        <input
+          id="fontFamily"
+          type="text"
+          class="text-input"
+          list="font-suggestions"
+          placeholder="Segoe UI"
+          value={currentSettings.fontFamily}
+          onchange={(e) => update("fontFamily", e.currentTarget.value)}
+        />
+        <datalist id="font-suggestions">
+          <option value="Segoe UI"></option>
+          <option value="Arial"></option>
+          <option value="Verdana"></option>
+          <option value="Tahoma"></option>
+          <option value="Trebuchet MS"></option>
+          <option value="Georgia"></option>
+          <option value="Times New Roman"></option>
+          <option value="Comic Sans MS"></option>
+          <option value="Impact"></option>
+          <option value="Consolas"></option>
+          <option value="Courier New"></option>
+        </datalist>
+      </div>
+
+      <!-- Насыщенность шрифта -->
+      <div class="setting-row">
+        <label class="setting-label" for="fontWeight">{t.fontWeight}</label>
+        <select
+          id="fontWeight"
+          class="select-input"
+          value={String(currentSettings.fontWeight)}
+          onchange={(e) => update("fontWeight", Number(e.currentTarget.value))}
+        >
+          <option value="400">{t.weightNormal}</option>
+          <option value="500">{t.weightMedium}</option>
+          <option value="600">{t.weightSemibold}</option>
+          <option value="700">{t.weightBold}</option>
+        </select>
+      </div>
+
+      <!-- Эффект текста -->
+      <div class="setting-row">
+        <label class="setting-label" for="textEffect">
+          {t.textEffect}
+          <span class="setting-hint">{t.textEffectHint}</span>
+        </label>
+        <select
+          id="textEffect"
+          class="select-input"
+          value={currentSettings.textEffect}
+          onchange={(e) => update("textEffect", e.currentTarget.value as "none" | "outline" | "shadow")}
+        >
+          <option value="none">{t.effectNone}</option>
+          <option value="outline">{t.effectOutline}</option>
+          <option value="shadow">{t.effectShadow}</option>
+        </select>
+      </div>
+
+      <!-- Анимация появления сообщений -->
+      <div class="setting-row">
+        <label class="setting-label" for="msgAnimation">{t.msgAnimation}</label>
+        <select
+          id="msgAnimation"
+          class="select-input"
+          value={currentSettings.msgAnimation}
+          onchange={(e) => update("msgAnimation", e.currentTarget.value as "none" | "fade" | "slide")}
+        >
+          <option value="none">{t.animNone}</option>
+          <option value="fade">{t.animFade}</option>
+          <option value="slide">{t.animSlide}</option>
+        </select>
+      </div>
     </div>
 
     <!-- Отображение -->
@@ -239,6 +318,23 @@
           <span class="toggle-knob"></span>
         </button>
       </div>
+
+      <div class="setting-row toggle-row">
+        <span class="setting-label">
+          {t.showViewerCount}
+          <span class="setting-hint">{t.showViewerCountHint}</span>
+        </span>
+        <button
+          class="toggle"
+          class:active={currentSettings.showViewerCount}
+          onclick={() => update("showViewerCount", !currentSettings.showViewerCount)}
+          aria-label={t.showViewerCount}
+          role="switch"
+          aria-checked={currentSettings.showViewerCount}
+        >
+          <span class="toggle-knob"></span>
+        </button>
+      </div>
     </div>
 
     <!-- Окно -->
@@ -293,6 +389,29 @@
         </div>
         <span class="setting-hint obs-hint">{t.obsHint}</span>
         <span class="setting-hint obs-hint">{t.obsDimensions}</span>
+      </div>
+
+      <!-- Авто-скрытие сообщений в overlay -->
+      <div class="setting-row">
+        <label class="setting-label" for="overlayHideDelay">
+          {t.overlayHideDelay}
+          <span class="setting-value">
+            {currentSettings.overlayHideDelay > 0
+              ? `${currentSettings.overlayHideDelay}${t.secUnit}`
+              : t.hideDelayOff}
+          </span>
+        </label>
+        <input
+          id="overlayHideDelay"
+          type="range"
+          min="0"
+          max="120"
+          step="5"
+          value={currentSettings.overlayHideDelay}
+          oninput={(e) => update("overlayHideDelay", Number(e.currentTarget.value))}
+          class="slider"
+        />
+        <span class="setting-hint">{t.overlayHideDelayHint}</span>
       </div>
     </div>
 

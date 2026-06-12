@@ -243,9 +243,10 @@ fn prepare_text(msg: &ChatMessage, settings: &TtsSettings) -> String {
     // Убрать лишние пробелы
     text = text.split_whitespace().collect::<Vec<&str>>().join(" ");
 
-    // Добавить имя пользователя
+    // Добавить имя пользователя (связка по языку интерфейса)
     if settings.read_usernames && !text.is_empty() {
-        text = format!("{} сказал: {}", msg.display_name, text);
+        let verb = if settings.language == "en" { "said" } else { "сказал" };
+        text = format!("{} {}: {}", msg.display_name, verb, text);
     }
 
     text

@@ -95,6 +95,15 @@ async fn connect_twitch(
     // Клонируем Arc для фоновой задачи
     let should_stop = Arc::clone(&state.should_stop);
 
+    // Запускаем опрос числа зрителей (предыдущий — останавливаем)
+    if let Some(handle) = state.viewer_task.lock().await.take() {
+        handle.abort();
+    }
+    *state.viewer_task.lock().await = Some(chat::viewers::spawn_twitch_poller(
+        app_handle.clone(),
+        channel.clone(),
+    ));
+
     // Запускаем чтение чата в фоновой задаче
     let handle = tokio::spawn(async move {
         chat::twitch::connect_and_listen(channel, app_handle, should_stop, token, user_login)
@@ -111,6 +120,9 @@ async fn connect_twitch(
 async fn disconnect_twitch(state: tauri::State<'_, TwitchState>) -> Result<(), String> {
     state.should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
     *state.current_channel.lock().await = None;
+    if let Some(handle) = state.viewer_task.lock().await.take() {
+        handle.abort();
+    }
     Ok(())
 }
 
@@ -280,6 +292,15 @@ async fn connect_kick(
     // Клонируем Arc для фоновой задачи
     let should_stop = Arc::clone(&state.should_stop);
 
+    // Запускаем опрос числа зрителей (предыдущий — останавливаем)
+    if let Some(handle) = state.viewer_task.lock().await.take() {
+        handle.abort();
+    }
+    *state.viewer_task.lock().await = Some(chat::viewers::spawn_kick_poller(
+        app_handle.clone(),
+        channel.clone(),
+    ));
+
     // Запускаем чтение чата в фоновой задаче
     let handle = tokio::spawn(async move {
         chat::kick::connect_and_listen(channel, chatroom_id, app_handle, should_stop).await;
@@ -294,6 +315,9 @@ async fn connect_kick(
 async fn disconnect_kick(state: tauri::State<'_, KickState>) -> Result<(), String> {
     state.should_stop.store(true, std::sync::atomic::Ordering::Relaxed);
     *state.current_channel.lock().await = None;
+    if let Some(handle) = state.viewer_task.lock().await.take() {
+        handle.abort();
+    }
     Ok(())
 }
 
@@ -358,6 +382,24 @@ async fn save_settings(
     }
     if !valid_hex(&new_settings.bg_color) {
         new_settings.bg_color = "#1a1a2e".to_string();
+    }
+
+    // Шрифт и эффекты: clamp + санитизация (font_family попадает в CSS overlay)
+    new_settings.font_weight = new_settings.font_weight.clamp(300, 800);
+    new_settings.overlay_hide_delay = new_settings.overlay_hide_delay.min(300);
+    new_settings.font_family = new_settings
+        .font_family
+        .chars()
+        .filter(|c| c.is_alphanumeric() || matches!(c, ' ' | ',' | '-' | '\'' | '.'))
+        .take(80)
+        .collect::<String>()
+        .trim()
+        .to_string();
+    if !["none", "outline", "shadow"].contains(&new_settings.text_effect.as_str()) {
+        new_settings.text_effect = "none".to_string();
+    }
+    if !["none", "fade", "slide"].contains(&new_settings.msg_animation.as_str()) {
+        new_settings.msg_animation = "fade".to_string();
     }
 
     // 1. Обновить в памяти (запоминаем старый порт для проверки)

@@ -63,6 +63,15 @@ pub struct TtsSettings {
     pub blacklist: Vec<String>,
     /// Белый список юзернеймов (всегда озвучивать, bypass фильтров)
     pub whitelist: Vec<String>,
+
+    /// Язык интерфейса ("ru"/"en") — для связки "сказал"/"said" при read_usernames
+    #[serde(default = "default_language")]
+    pub language: String,
+}
+
+/// Дефолтный язык для serde(default).
+fn default_language() -> String {
+    "ru".to_string()
 }
 
 impl Default for TtsSettings {
@@ -99,6 +108,8 @@ impl Default for TtsSettings {
                 "streamelements".to_string(),
             ],
             whitelist: vec![],
+
+            language: "ru".to_string(),
         }
     }
 }

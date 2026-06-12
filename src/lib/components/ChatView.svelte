@@ -61,7 +61,7 @@
 
 <div class="chat-view" style={chatBgStyle()}>
   <div
-    class="chat-messages"
+    class="chat-messages anim-{$settings.msgAnimation}"
     bind:this={chatContainer}
     onscroll={handleScroll}
   >
@@ -105,6 +105,32 @@
     overflow-x: hidden;
     padding: 4px 0;
     font-size: var(--font-size, 14px);
+    font-family: var(--chat-font-family, inherit);
+    font-weight: var(--chat-font-weight, 400);
+    text-shadow: var(--chat-text-shadow, none);
+  }
+
+  /* Анимация появления сообщений (классы на контейнере, сообщения — дочерние) */
+  .chat-messages :global(.chat-message) {
+    animation: none;
+  }
+
+  .chat-messages.anim-fade :global(.chat-message) {
+    animation: msg-fade 0.25s ease-out;
+  }
+
+  .chat-messages.anim-slide :global(.chat-message) {
+    animation: msg-slide 0.25s ease-out;
+  }
+
+  @keyframes -global-msg-fade {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes -global-msg-slide {
+    from { opacity: 0; transform: translateX(-16px); }
+    to   { opacity: 1; transform: translateX(0); }
   }
 
   .empty-state {

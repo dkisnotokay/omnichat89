@@ -26,7 +26,7 @@ const KICK_PUSHER_URL: &str =
     "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0-rc2&flash=false";
 
 /// User-Agent для HTTP запросов к Kick API (обход Cloudflare).
-const BROWSER_USER_AGENT: &str =
+pub const BROWSER_USER_AGENT: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 /// Состояние подключения к Kick чату.
@@ -38,6 +38,8 @@ pub struct KickState {
     pub current_channel: Arc<Mutex<Option<String>>>,
     /// Handle фоновой задачи для принудительной остановки
     pub task_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    /// Handle задачи опроса числа зрителей
+    pub viewer_task: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
 }
 
 impl Default for KickState {
@@ -46,6 +48,7 @@ impl Default for KickState {
             should_stop: Arc::new(AtomicBool::new(false)),
             current_channel: Arc::new(Mutex::new(None)),
             task_handle: Arc::new(Mutex::new(None)),
+            viewer_task: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -644,10 +647,13 @@ async fn handle_pusher_message<S>(
                     .and_then(|u| u.slug.or(u.username));
                 if let Some(name) = username {
                     info!("Kick: пользователь забанен — {}", name);
-                    let _ = app_handle.emit("chat-user-cleared", &name);
+                    let _ = app_handle.emit(
+                        "chat-user-cleared",
+                        serde_json::json!({ "platform": "kick", "username": name }),
+                    );
                     // Отправляем в OBS overlay
                     if let Some(overlay) = app_handle.try_state::<crate::overlay::OverlayState>() {
-                        let _ = overlay.command_tx.send(format!("clear_user:{}", name));
+                        let _ = overlay.command_tx.send(format!("clear_user:kick:{}", name));
                     }
                 } else {
                     info!("Kick: пользователь забанен (без имени)");
@@ -655,13 +661,13 @@ async fn handle_pusher_message<S>(
             }
         }
 
-        // Очистка всего чата
+        // Очистка всего чата — только сообщения Kick (Twitch не трогаем)
         "App\\Events\\ChatroomClearEvent" => {
-            info!("Kick: полная очистка чата");
-            let _ = app_handle.emit("chat-cleared", "");
+            info!("Kick: полная очистка чата Kick");
+            let _ = app_handle.emit("chat-cleared", "kick");
             // Отправляем в OBS overlay
             if let Some(overlay) = app_handle.try_state::<crate::overlay::OverlayState>() {
-                let _ = overlay.command_tx.send("clear".to_string());
+                let _ = overlay.command_tx.send("clear:kick".to_string());
             }
         }
 
