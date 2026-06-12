@@ -1,6 +1,6 @@
 [package]
 name = "omnichat"
-version = "0.1.1"
+version = "0.2.0"
 description = "Lightweight stream chat overlay for Twitch, Kick and more"
 authors = ["dkisnotokay"]
 edition = "2021"
@@ -18,36 +18,36 @@ tauri = { version = "2", features = ["tray-icon", "image-ico"] }
 tauri-plugin-opener = "2"
 tauri-plugin-clipboard-manager = "2"
 
-# Сериализация JSON
+# РЎРµСЂРёР°Р»РёР·Р°С†РёСЏ JSON
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 # Async runtime
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "io-util"] }
 
-# WebSocket клиент (для Twitch IRC и Kick Pusher)
+# WebSocket РєР»РёРµРЅС‚ (РґР»СЏ Twitch IRC Рё Kick Pusher)
 tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
 
-# Логирование
+# Р›РѕРіРёСЂРѕРІР°РЅРёРµ
 log = "0.4"
 env_logger = "0.11"
 
-# Генерация уникальных ID для сообщений
+# Р“РµРЅРµСЂР°С†РёСЏ СѓРЅРёРєР°Р»СЊРЅС‹С… ID РґР»СЏ СЃРѕРѕР±С‰РµРЅРёР№
 uuid = { version = "1", features = ["v4"] }
 
-# Async stream utilities (для WebSocket split/sink/stream)
+# Async stream utilities (РґР»СЏ WebSocket split/sink/stream)
 futures-util = "0.3"
 
-# HTTP клиент (для Twitch API: бейджи, валидация токена)
+# HTTP РєР»РёРµРЅС‚ (РґР»СЏ Twitch API: Р±РµР№РґР¶Рё, РІР°Р»РёРґР°С†РёСЏ С‚РѕРєРµРЅР°)
 reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls-native-roots"] }
 
-# Аудио воспроизведение (TTS)
+# РђСѓРґРёРѕ РІРѕСЃРїСЂРѕРёР·РІРµРґРµРЅРёРµ (TTS)
 rodio = { version = "0.20", default-features = false, features = ["mp3"] }
 
-# Случайный выбор (TTS random voice)
+# РЎР»СѓС‡Р°Р№РЅС‹Р№ РІС‹Р±РѕСЂ (TTS random voice)
 rand = "0.8"
 
-# SHA-256 для Edge TTS DRM токена (Sec-MS-GEC)
+# SHA-256 РґР»СЏ Edge TTS DRM С‚РѕРєРµРЅР° (Sec-MS-GEC)
 sha2 = "0.10"
 
 # Hex encoding
@@ -56,10 +56,10 @@ hex = "0.4"
 # URL encoding
 urlencoding = "2"
 
-# Безопасное хранение токенов (Windows Credential Manager / macOS Keychain / Linux Secret Service)
+# Р‘РµР·РѕРїР°СЃРЅРѕРµ С…СЂР°РЅРµРЅРёРµ С‚РѕРєРµРЅРѕРІ (Windows Credential Manager / macOS Keychain / Linux Secret Service)
 keyring = { version = "3", features = ["windows-native"] }
 
-# HTTP сервер для OBS Browser Source overlay
+# HTTP СЃРµСЂРІРµСЂ РґР»СЏ OBS Browser Source overlay
 axum = "0.8"
 tokio-stream = { version = "0.1", features = ["sync"] }
 

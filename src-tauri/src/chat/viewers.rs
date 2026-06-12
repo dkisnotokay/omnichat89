@@ -36,6 +36,7 @@ fn is_enabled(app_handle: &tauri::AppHandle) -> bool {
 
 /// Отправить число зрителей во frontend.
 fn emit_viewers(app_handle: &tauri::AppHandle, platform: &str, viewers: Option<u64>) {
+    info!("Viewer count: {} = {:?}", platform, viewers);
     let _ = app_handle.emit(
         "viewer-count",
         ViewerCountPayload {
@@ -155,9 +156,40 @@ async fn fetch_kick_viewers(client: &reqwest::Client, slug: &str) -> Result<Opti
         .await
         .map_err(|e| format!("JSON error: {}", e))?;
 
+    // livestream: null → канал оффлайн; Some без числа → неожиданный формат API
+    if let Some(ref ls) = channel.livestream {
+        if ls.viewer_count.is_none() && ls.viewers.is_none() {
+            warn!("Kick API: livestream без viewer_count/viewers — формат изменился?");
+        }
+    }
+
     Ok(channel
         .livestream
         .and_then(|ls| ls.viewer_count.or(ls.viewers)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Ручная сетевая проверка Kick API:
+    /// `cargo test probe_kick_viewers -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn probe_kick_viewers() {
+        let client = reqwest::Client::builder()
+            .user_agent(crate::chat::kick::BROWSER_USER_AGENT)
+            .timeout(std::time::Duration::from_secs(15))
+            .cookie_store(true)
+            .use_rustls_tls()
+            .build()
+            .unwrap();
+        let _ = client.get("https://kick.com/").send().await;
+        for slug in ["xqc", "classybeef", "garydavid"] {
+            let res = fetch_kick_viewers(&client, slug).await;
+            println!("{}: {:?}", slug, res);
+        }
+    }
 }
 
 /// Запустить фоновый опрос зрителей Kick.
