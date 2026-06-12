@@ -91,7 +91,7 @@ impl Default for TtsSettings {
             enabled: false,
             engine: "edge".to_string(),
             voice: "ru-RU-DmitryNeural".to_string(),
-            windows_voice: String::new(),
+            windows_voice: "random".to_string(),
             rate: 0,
             volume: 0,
             max_queue_size: 50,

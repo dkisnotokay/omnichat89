@@ -357,6 +357,8 @@ body {
     if (msg.id) el.setAttribute('data-id', msg.id);
     if (msg.username) el.setAttribute('data-username', msg.username.toLowerCase());
     if (msg.platform) el.setAttribute('data-platform', msg.platform);
+    // Время прибытия — для авто-скрытия (msg.timestamp может отставать от реального)
+    el.setAttribute('data-ts', String(Date.now()));
     var html = '';
 
     // Баннер системного события (sub, raid, gift)
@@ -463,14 +465,28 @@ body {
     viewersEl.innerHTML = html;
   }
 
-  /* ═══════ Авто-скрытие: плавно скрыть и удалить сообщение ═══════ */
-  function scheduleHide(el) {
+  /* ═══════ Авто-скрытие: «подметальщик» раз в секунду ═══════
+     Проверяет возраст ВСЕХ сообщений (включая пришедшие до включения
+     опции) и плавно убирает старше hideDelayMs. Выключение опции
+     срабатывает сразу — таймеров на элементах нет. */
+  setInterval(function() {
+    if (hideDelayMs <= 0) return;
+    var now = Date.now();
+    var msgs = chatEl.querySelectorAll('.msg:not(.msg-fading)');
+    for (var i = 0; i < msgs.length; i++) {
+      var el = msgs[i];
+      var ts = parseInt(el.getAttribute('data-ts') || '0', 10);
+      if (ts && now - ts > hideDelayMs) {
+        fadeOutAndRemove(el);
+      }
+    }
+  }, 1000);
+
+  function fadeOutAndRemove(el) {
+    el.classList.add('msg-fading');
     setTimeout(function() {
-      el.classList.add('msg-fading');
-      setTimeout(function() {
-        if (el.parentNode) el.parentNode.removeChild(el);
-      }, 650);
-    }, hideDelayMs);
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }, 650);
   }
 
   /* ═══════ SSE chat с автопереподключением ═══════ */
@@ -480,9 +496,7 @@ body {
     source.onmessage = function(e) {
       sseRetry = 0; // Сброс backoff при успешном сообщении
       try {
-        var msgEl = renderMessage(JSON.parse(e.data));
-        chatEl.appendChild(msgEl);
-        if (hideDelayMs > 0) scheduleHide(msgEl);
+        chatEl.appendChild(renderMessage(JSON.parse(e.data)));
         trimMessages();
       } catch(_) {}
     };

@@ -51,7 +51,9 @@ pub fn list_voices() -> Result<Vec<WindowsVoice>, String> {
 /// Синтезировать текст локальным голосом Windows.
 ///
 /// # Аргументы
-/// * `voice_name` — DisplayName голоса (пусто = голос Windows по умолчанию)
+/// * `voice_name` — DisplayName голоса; "random" или пусто = случайный
+///   голос языка интерфейса (на каждое сообщение новый)
+/// * `lang` — язык интерфейса ("ru"/"en") для фильтра случайного выбора
 /// * `rate` — скорость в процентах, как у Edge TTS (-50..+100)
 /// * `volume` — громкость, как в TtsSettings (-100..0 → 0..100%)
 ///
@@ -60,29 +62,52 @@ pub fn list_voices() -> Result<Vec<WindowsVoice>, String> {
 pub async fn synthesize(
     text: &str,
     voice_name: &str,
+    lang: &str,
     rate: i32,
     volume: i32,
 ) -> Result<Vec<u8>, String> {
     let text = text.to_string();
     let voice_name = voice_name.to_string();
+    let lang = lang.to_string();
 
     // WinRT вызовы блокирующие (.get()) — уводим в blocking-поток tokio
     tokio::task::spawn_blocking(move || -> Result<Vec<u8>, String> {
         let synth = SpeechSynthesizer::new()
             .map_err(|e| format!("Ошибка создания синтезатора: {}", e))?;
 
-        // Выбор голоса по имени
-        if !voice_name.is_empty() {
+        // Выбор голоса: случайный по языку или конкретный по имени
+        if voice_name.is_empty() || voice_name == "random" {
             if let Ok(voices) = SpeechSynthesizer::AllVoices() {
-                for voice in &voices {
-                    if voice
-                        .DisplayName()
-                        .map(|n| n.to_string() == voice_name)
-                        .unwrap_or(false)
-                    {
-                        let _ = synth.SetVoice(&voice);
-                        break;
-                    }
+                let all: Vec<_> = voices.into_iter().collect();
+                // Голоса языка интерфейса; если таких нет — любые
+                let matching: Vec<_> = all
+                    .iter()
+                    .filter(|v| {
+                        v.Language()
+                            .map(|l| l.to_string().to_lowercase().starts_with(&lang))
+                            .unwrap_or(false)
+                    })
+                    .collect();
+                let pool: Vec<&_> = if matching.is_empty() {
+                    all.iter().collect()
+                } else {
+                    matching
+                };
+                if !pool.is_empty() {
+                    use rand::Rng;
+                    let idx = rand::thread_rng().gen_range(0..pool.len());
+                    let _ = synth.SetVoice(pool[idx]);
+                }
+            }
+        } else if let Ok(voices) = SpeechSynthesizer::AllVoices() {
+            for voice in &voices {
+                if voice
+                    .DisplayName()
+                    .map(|n| n.to_string() == voice_name)
+                    .unwrap_or(false)
+                {
+                    let _ = synth.SetVoice(&voice);
+                    break;
                 }
             }
         }
@@ -146,7 +171,7 @@ mod tests {
         for v in &voices {
             println!("voice: {} ({})", v.name, v.language);
         }
-        let audio = synthesize("Привет, это проверка локальной озвучки", "", 0, 0)
+        let audio = synthesize("Привет, это проверка локальной озвучки", "random", "ru", 0, 0)
             .await
             .expect("синтез");
         println!("audio bytes: {}", audio.len());

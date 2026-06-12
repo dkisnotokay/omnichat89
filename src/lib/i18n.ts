@@ -34,7 +34,6 @@ export interface I18nStrings {
   fontDefault: string;
   fontWeight: string;
   weightNormal: string;
-  weightMedium: string;
   weightSemibold: string;
   weightBold: string;
   textEffect: string;
@@ -170,7 +169,6 @@ const ru: I18nStrings = {
   fontDefault: "По умолчанию",
   fontWeight: "Насыщенность шрифта",
   weightNormal: "Обычный",
-  weightMedium: "Средний",
   weightSemibold: "Полужирный",
   weightBold: "Жирный",
   textEffect: "Эффект текста",
@@ -192,7 +190,7 @@ const ru: I18nStrings = {
   showSystemEvents: "Показывать системные события",
   showSystemEventsHint: "Подписки, рейды, подарки",
   showViewerCount: "Счётчик зрителей",
-  showViewerCountHint: "Twitch — только при авторизации",
+  showViewerCountHint: "Обновляется раз в 60 секунд",
   readHighlighted: "Озвучивать выделенные сообщения",
 
   alwaysOnTop: "Поверх окон",
@@ -294,7 +292,6 @@ const en: I18nStrings = {
   fontDefault: "Default",
   fontWeight: "Font weight",
   weightNormal: "Normal",
-  weightMedium: "Medium",
   weightSemibold: "Semibold",
   weightBold: "Bold",
   textEffect: "Text effect",
@@ -316,7 +313,7 @@ const en: I18nStrings = {
   showSystemEvents: "Show system events",
   showSystemEventsHint: "Subs, raids, gifts",
   showViewerCount: "Viewer count",
-  showViewerCountHint: "Twitch requires login",
+  showViewerCountHint: "Updates every 60 seconds",
   readHighlighted: "Read highlighted messages",
 
   alwaysOnTop: "Always on top",

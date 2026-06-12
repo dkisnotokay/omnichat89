@@ -386,7 +386,12 @@ async fn save_settings(
     }
 
     // Шрифт и эффекты: clamp + санитизация (font_family попадает в CSS overlay)
-    new_settings.font_weight = new_settings.font_weight.clamp(300, 800);
+    // Насыщенность — только реально поддерживаемые веса (500 у многих шрифтов нет)
+    new_settings.font_weight = match new_settings.font_weight {
+        w if w < 600 => 400,
+        w if w < 700 => 600,
+        _ => 700,
+    };
     new_settings.overlay_hide_delay = new_settings.overlay_hide_delay.min(300);
     new_settings.msg_animation_ms = new_settings.msg_animation_ms.clamp(100, 1000);
     if !["edge", "windows"].contains(&new_settings.tts_engine.as_str()) {

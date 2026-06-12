@@ -133,7 +133,7 @@ impl Default for AppSettings {
             tts_enabled: false,
             tts_engine: "edge".to_string(),
             tts_voice: "ru-RU-DmitryNeural".to_string(),
-            tts_windows_voice: String::new(),
+            tts_windows_voice: "random".to_string(),
             tts_rate: 0,
             tts_volume: 100,
             tts_max_queue_size: 50,

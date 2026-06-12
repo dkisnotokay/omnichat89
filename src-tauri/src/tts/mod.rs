@@ -284,6 +284,7 @@ struct VoiceParams {
     engine: String,
     voice: String,
     windows_voice: String,
+    language: String,
     rate: i32,
     volume: i32,
     pause_ms: u64,
@@ -292,7 +293,7 @@ struct VoiceParams {
 /// Синтезировать выбранным движком (edge / windows).
 async fn synthesize_engine(p: &VoiceParams, text: &str) -> Result<Vec<u8>, String> {
     if p.engine == "windows" {
-        windows::synthesize(text, &p.windows_voice, p.rate, p.volume).await
+        windows::synthesize(text, &p.windows_voice, &p.language, p.rate, p.volume).await
     } else {
         edge::synthesize(text, &p.voice, p.rate, p.volume).await
     }
@@ -389,6 +390,7 @@ pub fn start_tts_processor(app_handle: AppHandle) {
                 engine: s.engine.clone(),
                 voice,
                 windows_voice: s.windows_voice.clone(),
+                language: s.language.clone(),
                 rate: s.rate,
                 volume: s.volume,
                 pause_ms: s.pause_ms,

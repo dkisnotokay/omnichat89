@@ -230,7 +230,6 @@
           onchange={(e) => update("fontWeight", Number(e.currentTarget.value))}
         >
           <option value="400">{t.weightNormal}</option>
-          <option value="500">{t.weightMedium}</option>
           <option value="600">{t.weightSemibold}</option>
           <option value="700">{t.weightBold}</option>
         </select>
@@ -512,10 +511,10 @@
           <select
             id="ttsWindowsVoice"
             class="select-input"
-            value={currentSettings.ttsWindowsVoice}
+            value={currentSettings.ttsWindowsVoice || "random"}
             onchange={(e) => update("ttsWindowsVoice", e.currentTarget.value)}
           >
-            <option value="">{t.fontDefault}</option>
+            <option value="random">{t.random}</option>
             {#each windowsVoices as voice (voice.name)}
               <option value={voice.name}>{voice.name} ({voice.language})</option>
             {/each}

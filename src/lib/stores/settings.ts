@@ -117,7 +117,7 @@ export const defaultSettings: AppSettings = {
   ttsEnabled: false,
   ttsEngine: "edge",
   ttsVoice: "ru-RU-DmitryNeural",
-  ttsWindowsVoice: "",
+  ttsWindowsVoice: "random",
   ttsRate: 0,
   ttsVolume: 100,
   ttsMaxQueueSize: 50,
