@@ -11,8 +11,14 @@ pub struct TtsSettings {
     // --- Основные ---
     /// Включена ли озвучка
     pub enabled: bool,
+    /// Движок синтеза: "edge" (онлайн) | "windows" (локально)
+    #[serde(default = "default_engine")]
+    pub engine: String,
     /// Имя голоса Edge TTS (например "ru-RU-DmitryNeural") или "random"
     pub voice: String,
+    /// Голос Windows-движка (DisplayName, пусто = системный по умолчанию)
+    #[serde(default)]
+    pub windows_voice: String,
     /// Скорость речи в процентах (-50..+100)
     pub rate: i32,
     /// Громкость в процентах (-50..0)
@@ -74,19 +80,26 @@ fn default_language() -> String {
     "ru".to_string()
 }
 
+/// Дефолтный движок для serde(default).
+fn default_engine() -> String {
+    "edge".to_string()
+}
+
 impl Default for TtsSettings {
     fn default() -> Self {
         Self {
             enabled: false,
+            engine: "edge".to_string(),
             voice: "ru-RU-DmitryNeural".to_string(),
+            windows_voice: String::new(),
             rate: 0,
             volume: 0,
-            max_queue_size: 20,
+            max_queue_size: 50,
             pause_ms: 300,
 
             read_all: true,
             read_replies: true,
-            read_highlighted: false,
+            read_highlighted: true,
             read_subscribers: false,
             read_vip: false,
             read_moderators: false,

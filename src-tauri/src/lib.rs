@@ -10,6 +10,7 @@
 
 mod chat;
 mod config;
+mod fonts;
 pub mod overlay;
 mod tts;
 
@@ -387,6 +388,10 @@ async fn save_settings(
     // Шрифт и эффекты: clamp + санитизация (font_family попадает в CSS overlay)
     new_settings.font_weight = new_settings.font_weight.clamp(300, 800);
     new_settings.overlay_hide_delay = new_settings.overlay_hide_delay.min(300);
+    new_settings.msg_animation_ms = new_settings.msg_animation_ms.clamp(100, 1000);
+    if !["edge", "windows"].contains(&new_settings.tts_engine.as_str()) {
+        new_settings.tts_engine = "edge".to_string();
+    }
     new_settings.font_family = new_settings
         .font_family
         .chars()
@@ -492,6 +497,22 @@ async fn tts_clear_queue(state: tauri::State<'_, tts::TtsState>) -> Result<(), S
         .store(true, std::sync::atomic::Ordering::Relaxed);
     state.notify.notify_one();
     Ok(())
+}
+
+/// Список голосов Windows для локального TTS движка.
+#[tauri::command]
+async fn tts_list_windows_voices() -> Result<Vec<tts::windows::WindowsVoice>, String> {
+    tokio::task::spawn_blocking(tts::windows::list_voices)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Список установленных в системе шрифтов (для выпадающего списка в настройках).
+#[tauri::command]
+async fn list_system_fonts() -> Result<Vec<String>, String> {
+    tokio::task::spawn_blocking(fonts::list_system_fonts)
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -755,6 +776,8 @@ pub fn run() {
             save_settings,
             tts_skip,
             tts_clear_queue,
+            tts_list_windows_voices,
+            list_system_fonts,
         ])
         .run(tauri::generate_context!())
         .expect("Ошибка при запуске Omnichat89");

@@ -116,20 +116,20 @@
   }
 
   .chat-messages.anim-fade :global(.chat-message) {
-    animation: msg-fade 0.25s ease-out;
+    animation: msg-fade var(--msg-anim-duration, 250ms) ease-out;
   }
 
   .chat-messages.anim-slide :global(.chat-message) {
-    animation: msg-slide 0.25s ease-out;
+    animation: msg-slide var(--msg-anim-duration, 250ms) ease-out;
   }
 
   @keyframes -global-msg-fade {
-    from { opacity: 0; transform: translateY(6px); }
+    from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
   }
 
   @keyframes -global-msg-slide {
-    from { opacity: 0; transform: translateX(-16px); }
+    from { opacity: 0; transform: translateX(-40px); }
     to   { opacity: 1; transform: translateX(0); }
   }
 

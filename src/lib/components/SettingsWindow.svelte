@@ -8,11 +8,42 @@
    * Поддерживает русский и английский интерфейс.
    */
   import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { getVersion } from "@tauri-apps/api/app";
+  import { invoke } from "@tauri-apps/api/core";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import { settings, resetSettings, type AppSettings } from "../stores/settings";
   import { getStrings } from "../i18n";
 
   const appWindow = getCurrentWindow();
+
+  /** Версия приложения — из tauri.conf.json, всегда актуальна */
+  let appVersion = $state("");
+  getVersion().then((v) => { appVersion = v; }).catch(() => {});
+
+  /** Системные шрифты для выпадающего списка */
+  let systemFonts = $state<string[]>([]);
+  invoke<string[]>("list_system_fonts")
+    .then((fonts) => { systemFonts = fonts; })
+    .catch(() => {});
+
+  /** Голоса Windows для локального TTS движка */
+  interface WindowsVoice { name: string; language: string; }
+  let windowsVoices = $state<WindowsVoice[]>([]);
+  let windowsVoicesLoaded = $state(false);
+
+  /** Загрузить голоса Windows (лениво, при выборе движка) */
+  function loadWindowsVoices() {
+    if (windowsVoicesLoaded) return;
+    windowsVoicesLoaded = true;
+    invoke<WindowsVoice[]>("tts_list_windows_voices")
+      .then((voices) => { windowsVoices = voices; })
+      .catch(() => {});
+  }
+
+  /** Подгружаем голоса если движок windows уже выбран */
+  $effect(() => {
+    if (currentSettings.ttsEngine === "windows") loadWindowsVoices();
+  });
 
   let currentSettings = $derived($settings);
   let t = $derived(getStrings(currentSettings.language));
@@ -173,34 +204,20 @@
         </div>
       </div>
 
-      <!-- Шрифт: ввод с подсказками системных шрифтов -->
+      <!-- Шрифт: выпадающий список установленных в системе -->
       <div class="setting-row">
-        <label class="setting-label" for="fontFamily">
-          {t.fontFamily}
-          <span class="setting-hint">{t.fontFamilyHint}</span>
-        </label>
-        <input
+        <label class="setting-label" for="fontFamily">{t.fontFamily}</label>
+        <select
           id="fontFamily"
-          type="text"
-          class="text-input"
-          list="font-suggestions"
-          placeholder="Segoe UI"
+          class="select-input"
           value={currentSettings.fontFamily}
           onchange={(e) => update("fontFamily", e.currentTarget.value)}
-        />
-        <datalist id="font-suggestions">
-          <option value="Segoe UI"></option>
-          <option value="Arial"></option>
-          <option value="Verdana"></option>
-          <option value="Tahoma"></option>
-          <option value="Trebuchet MS"></option>
-          <option value="Georgia"></option>
-          <option value="Times New Roman"></option>
-          <option value="Comic Sans MS"></option>
-          <option value="Impact"></option>
-          <option value="Consolas"></option>
-          <option value="Courier New"></option>
-        </datalist>
+        >
+          <option value="">{t.fontDefault}</option>
+          {#each systemFonts as font (font)}
+            <option value={font}>{font}</option>
+          {/each}
+        </select>
       </div>
 
       <!-- Насыщенность шрифта -->
@@ -251,6 +268,66 @@
           <option value="slide">{t.animSlide}</option>
         </select>
       </div>
+
+      <!-- Длительность анимации -->
+      {#if currentSettings.msgAnimation !== "none"}
+        <div class="setting-row">
+          <label class="setting-label" for="msgAnimationMs">
+            {t.animDuration}
+            <span class="setting-value">{currentSettings.msgAnimationMs}{t.msUnit}</span>
+          </label>
+          <input
+            id="msgAnimationMs"
+            type="range"
+            min="100"
+            max="1000"
+            step="50"
+            value={currentSettings.msgAnimationMs}
+            oninput={(e) => update("msgAnimationMs", Number(e.currentTarget.value))}
+            class="slider"
+          />
+        </div>
+      {/if}
+
+      <!-- Авто-скрытие сообщений -->
+      <div class="setting-row">
+        <label class="setting-label" for="overlayHideDelay">
+          {t.overlayHideDelay}
+          <span class="setting-value">
+            {currentSettings.overlayHideDelay > 0
+              ? `${currentSettings.overlayHideDelay}${t.secUnit}`
+              : t.hideDelayOff}
+          </span>
+        </label>
+        <input
+          id="overlayHideDelay"
+          type="range"
+          min="0"
+          max="120"
+          step="5"
+          value={currentSettings.overlayHideDelay}
+          oninput={(e) => update("overlayHideDelay", Number(e.currentTarget.value))}
+          class="slider"
+        />
+        <span class="setting-hint">{t.overlayHideDelayHint}</span>
+      </div>
+
+      <!-- Скрывать и в окне приложения -->
+      {#if currentSettings.overlayHideDelay > 0}
+        <div class="setting-row toggle-row">
+          <span class="setting-label">{t.hideInApp}</span>
+          <button
+            class="toggle"
+            class:active={currentSettings.hideInApp}
+            onclick={() => update("hideInApp", !currentSettings.hideInApp)}
+            aria-label={t.hideInApp}
+            role="switch"
+            aria-checked={currentSettings.hideInApp}
+          >
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+      {/if}
     </div>
 
     <!-- Отображение -->
@@ -390,29 +467,6 @@
         <span class="setting-hint obs-hint">{t.obsHint}</span>
         <span class="setting-hint obs-hint">{t.obsDimensions}</span>
       </div>
-
-      <!-- Авто-скрытие сообщений в overlay -->
-      <div class="setting-row">
-        <label class="setting-label" for="overlayHideDelay">
-          {t.overlayHideDelay}
-          <span class="setting-value">
-            {currentSettings.overlayHideDelay > 0
-              ? `${currentSettings.overlayHideDelay}${t.secUnit}`
-              : t.hideDelayOff}
-          </span>
-        </label>
-        <input
-          id="overlayHideDelay"
-          type="range"
-          min="0"
-          max="120"
-          step="5"
-          value={currentSettings.overlayHideDelay}
-          oninput={(e) => update("overlayHideDelay", Number(e.currentTarget.value))}
-          class="slider"
-        />
-        <span class="setting-hint">{t.overlayHideDelayHint}</span>
-      </div>
     </div>
 
     <!-- TTS Озвучка -->
@@ -434,27 +488,64 @@
         </button>
       </div>
 
-      <!-- Голос -->
+      <!-- Движок синтеза -->
       <div class="setting-row">
-        <label class="setting-label" for="ttsVoice">{t.voice}</label>
+        <label class="setting-label" for="ttsEngine">
+          {t.ttsEngine}
+          <span class="setting-hint">{t.ttsEngineHint}</span>
+        </label>
         <select
-          id="ttsVoice"
+          id="ttsEngine"
           class="select-input"
-          value={currentSettings.ttsVoice}
-          onchange={(e) => update("ttsVoice", e.currentTarget.value)}
+          value={currentSettings.ttsEngine}
+          onchange={(e) => update("ttsEngine", e.currentTarget.value as "edge" | "windows")}
         >
-          {#if currentSettings.language === "ru"}
-            <option value="ru-RU-DmitryNeural">Дмитрий</option>
-            <option value="ru-RU-SvetlanaNeural">Светлана</option>
-          {:else}
-            <option value="en-US-ChristopherNeural">Christopher</option>
-            <option value="en-US-JennyNeural">Jenny</option>
-            <option value="en-US-GuyNeural">Guy</option>
-            <option value="en-US-AriaNeural">Aria</option>
-          {/if}
-          <option value="random">{t.random}</option>
+          <option value="edge">{t.ttsEngineEdge}</option>
+          <option value="windows">{t.ttsEngineWindows}</option>
         </select>
       </div>
+
+      <!-- Голос -->
+      {#if currentSettings.ttsEngine === "windows"}
+        <div class="setting-row">
+          <label class="setting-label" for="ttsWindowsVoice">{t.voice}</label>
+          <select
+            id="ttsWindowsVoice"
+            class="select-input"
+            value={currentSettings.ttsWindowsVoice}
+            onchange={(e) => update("ttsWindowsVoice", e.currentTarget.value)}
+          >
+            <option value="">{t.fontDefault}</option>
+            {#each windowsVoices as voice (voice.name)}
+              <option value={voice.name}>{voice.name} ({voice.language})</option>
+            {/each}
+          </select>
+          {#if windowsVoicesLoaded && windowsVoices.length === 0}
+            <span class="setting-hint">{t.noWindowsVoices}</span>
+          {/if}
+        </div>
+      {:else}
+        <div class="setting-row">
+          <label class="setting-label" for="ttsVoice">{t.voice}</label>
+          <select
+            id="ttsVoice"
+            class="select-input"
+            value={currentSettings.ttsVoice}
+            onchange={(e) => update("ttsVoice", e.currentTarget.value)}
+          >
+            {#if currentSettings.language === "ru"}
+              <option value="ru-RU-DmitryNeural">Дмитрий</option>
+              <option value="ru-RU-SvetlanaNeural">Светлана</option>
+            {:else}
+              <option value="en-US-ChristopherNeural">Christopher</option>
+              <option value="en-US-JennyNeural">Jenny</option>
+              <option value="en-US-GuyNeural">Guy</option>
+              <option value="en-US-AriaNeural">Aria</option>
+            {/if}
+            <option value="random">{t.random}</option>
+          </select>
+        </div>
+      {/if}
 
       <!-- Скорость -->
       <div class="setting-row">
@@ -502,7 +593,7 @@
           id="ttsQueue"
           type="range"
           min="5"
-          max="50"
+          max="100"
           step="5"
           value={currentSettings.ttsMaxQueueSize}
           oninput={(e) => update("ttsMaxQueueSize", Number(e.currentTarget.value))}
@@ -783,7 +874,7 @@
   <!-- Подвал: сброс + версия -->
   <div class="settings-footer">
     <button class="reset-btn" onclick={handleReset}>{t.resetSettings}</button>
-    <span class="version">Omnichat89 v0.1.0</span>
+    <span class="version">Omnichat89 {appVersion ? `v${appVersion}` : ""}</span>
   </div>
 </div>
 

@@ -1,6 +1,6 @@
 [package]
 name = "omnichat"
-version = "0.2.0"
+version = "0.2.1"
 description = "Lightweight stream chat overlay for Twitch, Kick and more"
 authors = ["dkisnotokay"]
 edition = "2021"
@@ -42,7 +42,7 @@ futures-util = "0.3"
 reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls-native-roots"] }
 
 # РђСѓРґРёРѕ РІРѕСЃРїСЂРѕРёР·РІРµРґРµРЅРёРµ (TTS)
-rodio = { version = "0.20", default-features = false, features = ["mp3"] }
+rodio = { version = "0.20", default-features = false, features = ["mp3", "wav"] }
 
 # РЎР»СѓС‡Р°Р№РЅС‹Р№ РІС‹Р±РѕСЂ (TTS random voice)
 rand = "0.8"
@@ -62,6 +62,12 @@ keyring = { version = "3", features = ["windows-native"] }
 # HTTP СЃРµСЂРІРµСЂ РґР»СЏ OBS Browser Source overlay
 axum = "0.8"
 tokio-stream = { version = "0.1", features = ["sync"] }
+
+# WinRT API: Windows.Media.SpeechSynthesis (локальный TTS движок)
+windows = { version = "0.61", features = ["Media_SpeechSynthesis", "Media_Core", "Storage_Streams", "Foundation", "Foundation_Collections"] }
+
+# Чтение реестра Windows (список установленных шрифтов)
+winreg = "0.55"
 
 [profile.release]
 lto = true

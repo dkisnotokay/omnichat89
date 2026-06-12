@@ -1860,6 +1860,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "hound"
+version = "3.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62adaabb884c94955b19907d60019f4e145d091c75345379e70d1ee696f7854f"
+
+[[package]]
 name = "html5ever"
 version = "0.29.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3020,7 +3026,7 @@ dependencies = [
 
 [[package]]
 name = "omnichat"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "axum",
  "env_logger",
@@ -3043,6 +3049,8 @@ dependencies = [
  "tokio-tungstenite",
  "urlencoding",
  "uuid",
+ "windows 0.61.3",
+ "winreg",
 ]
 
 [[package]]
@@ -3948,6 +3956,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7ceb6607dd738c99bc8cb28eff249b7cd5c8ec88b9db96c0608c1480d140fb1"
 dependencies = [
  "cpal",
+ "hound",
  "symphonia",
 ]
 

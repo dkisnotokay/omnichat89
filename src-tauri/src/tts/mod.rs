@@ -9,12 +9,13 @@
 pub mod edge;
 pub mod player;
 pub mod settings;
+pub mod windows;
 
 use crate::chat::message::ChatMessage;
 use rand::seq::SliceRandom;
 use settings::{TtsSettings, AVAILABLE_VOICES};
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::{Mutex, Notify};
@@ -31,6 +32,8 @@ pub struct TtsState {
     pub skip_current: Arc<AtomicBool>,
     /// Флаг: очистить очередь
     pub clear_queue: Arc<AtomicBool>,
+    /// Счётчик пропущенных сообщений (переполнение очереди / ошибки синтеза)
+    pub skipped: Arc<AtomicUsize>,
     /// Уведомление о новых сообщениях в очереди
     pub notify: Arc<Notify>,
 }
@@ -43,6 +46,7 @@ impl Default for TtsState {
             is_speaking: Arc::new(AtomicBool::new(false)),
             skip_current: Arc::new(AtomicBool::new(false)),
             clear_queue: Arc::new(AtomicBool::new(false)),
+            skipped: Arc::new(AtomicUsize::new(0)),
             notify: Arc::new(Notify::new()),
         }
     }
@@ -53,6 +57,8 @@ impl Default for TtsState {
 pub struct TtsStatusPayload {
     pub is_speaking: bool,
     pub queue_size: usize,
+    /// Сколько сообщений было пропущено (переполнение очереди / ошибки синтеза)
+    pub skipped: usize,
 }
 
 /// Попробовать добавить сообщение в очередь TTS.
@@ -71,6 +77,7 @@ pub fn try_enqueue(app_handle: &AppHandle, msg: &ChatMessage) {
     let queue = state.queue.clone();
     let notify = state.notify.clone();
     let is_speaking = state.is_speaking.clone();
+    let skipped = state.skipped.clone();
 
     let msg = msg.clone();
     let app = app_handle.clone();
@@ -172,10 +179,12 @@ pub fn try_enqueue(app_handle: &AppHandle, msg: &ChatMessage) {
             return;
         }
 
-        // 7. Проверка размера очереди
+        // 7. Переполнение очереди: выбрасываем СТАРЫЕ сообщения, читаем свежие
         let mut q = queue.lock().await;
-        if q.len() >= s.max_queue_size {
-            return;
+        while q.len() >= s.max_queue_size {
+            q.pop_front();
+            let total = skipped.fetch_add(1, Ordering::Relaxed) + 1;
+            log::warn!("TTS: очередь переполнена, пропущено старое сообщение (всего {})", total);
         }
         q.push_back(text.clone());
         let queue_size = q.len();
@@ -184,7 +193,12 @@ pub fn try_enqueue(app_handle: &AppHandle, msg: &ChatMessage) {
 
         log::info!("TTS: добавлено в очередь [{}]: \"{}\"", queue_size, text);
         notify.notify_one();
-        emit_tts_status(&app, is_speaking.load(Ordering::Relaxed), queue_size);
+        emit_tts_status(
+            &app,
+            is_speaking.load(Ordering::Relaxed),
+            queue_size,
+            skipped.load(Ordering::Relaxed),
+        );
     });
 }
 
@@ -264,6 +278,39 @@ fn remove_urls(text: &str) -> String {
         .join(" ")
 }
 
+/// Параметры синтеза, прочитанные из настроек.
+#[derive(Clone)]
+struct VoiceParams {
+    engine: String,
+    voice: String,
+    windows_voice: String,
+    rate: i32,
+    volume: i32,
+    pause_ms: u64,
+}
+
+/// Синтезировать выбранным движком (edge / windows).
+async fn synthesize_engine(p: &VoiceParams, text: &str) -> Result<Vec<u8>, String> {
+    if p.engine == "windows" {
+        windows::synthesize(text, &p.windows_voice, p.rate, p.volume).await
+    } else {
+        edge::synthesize(text, &p.voice, p.rate, p.volume).await
+    }
+}
+
+/// Синтез с одним повтором при ошибке (сетевые сбои Edge TTS не должны
+/// приводить к потере сообщения).
+async fn synthesize_with_retry(p: &VoiceParams, text: &str) -> Result<Vec<u8>, String> {
+    match synthesize_engine(p, text).await {
+        Ok(data) => Ok(data),
+        Err(e) => {
+            log::warn!("TTS: ошибка синтеза, повтор через 500мс: {}", e);
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            synthesize_engine(p, text).await
+        }
+    }
+}
+
 /// Запустить фоновый TTS процессор.
 ///
 /// Создаёт поток для аудио плеера (rodio) и async задачу для обработки очереди.
@@ -276,6 +323,7 @@ pub fn start_tts_processor(app_handle: AppHandle) {
     let is_speaking = state.is_speaking.clone();
     let skip_current = state.skip_current.clone();
     let clear_queue = state.clear_queue.clone();
+    let skipped = state.skipped.clone();
     let notify = state.notify.clone();
 
     // Каналы для общения с плеером
@@ -317,11 +365,9 @@ pub fn start_tts_processor(app_handle: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let mut prefetched: Option<(String, Vec<u8>)> = None;
 
-        /// Читает голос/rate/volume из настроек.
+        /// Читает движок/голоса/rate/volume из настроек.
         /// Поддерживает "random-ru" и "random-en" для случайного выбора по языку.
-        async fn read_voice_params(
-            settings: &Mutex<settings::TtsSettings>,
-        ) -> (String, i32, i32, u64) {
+        async fn read_voice_params(settings: &Mutex<settings::TtsSettings>) -> VoiceParams {
             let s = settings.lock().await;
             let voice = if s.voice.starts_with("random") {
                 // "random-ru" → фильтр по "ru-", "random-en" → по "en-", "random" → все
@@ -339,7 +385,14 @@ pub fn start_tts_processor(app_handle: AppHandle) {
             } else {
                 s.voice.clone()
             };
-            (voice, s.rate, s.volume, s.pause_ms)
+            VoiceParams {
+                engine: s.engine.clone(),
+                voice,
+                windows_voice: s.windows_voice.clone(),
+                rate: s.rate,
+                volume: s.volume,
+                pause_ms: s.pause_ms,
+            }
         }
 
         loop {
@@ -349,13 +402,14 @@ pub fn start_tts_processor(app_handle: AppHandle) {
                 _ = tokio::time::sleep(std::time::Duration::from_millis(200)) => {}
             }
 
-            // Очистка очереди
+            // Очистка очереди (сбрасывает и счётчик пропущенных)
             if clear_queue.load(Ordering::Relaxed) {
                 clear_queue.store(false, Ordering::Relaxed);
                 prefetched = None;
+                skipped.store(0, Ordering::Relaxed);
                 let mut q = queue.lock().await;
                 q.clear();
-                emit_tts_status(&app_handle, is_speaking.load(Ordering::Relaxed), 0);
+                emit_tts_status(&app_handle, is_speaking.load(Ordering::Relaxed), 0, 0);
                 continue;
             }
 
@@ -381,15 +435,23 @@ pub fn start_tts_processor(app_handle: AppHandle) {
                 };
 
                 log::info!("TTS процессор: синтез \"{}\"", text);
-                let (voice, rate, volume, _) = read_voice_params(&settings).await;
+                let params = read_voice_params(&settings).await;
 
-                match edge::synthesize(&text, &voice, rate, volume).await {
+                match synthesize_with_retry(&params, &text).await {
                     Ok(data) => {
                         log::info!("TTS: синтез OK, {} байт", data.len());
                         (text, data)
                     }
                     Err(e) => {
-                        log::error!("Ошибка синтеза TTS: {}", e);
+                        log::error!("Ошибка синтеза TTS (после повтора): {}", e);
+                        let total = skipped.fetch_add(1, Ordering::Relaxed) + 1;
+                        let q = queue.lock().await;
+                        emit_tts_status(
+                            &app_handle,
+                            is_speaking.load(Ordering::Relaxed),
+                            q.len(),
+                            total,
+                        );
                         continue;
                     }
                 }
@@ -407,7 +469,7 @@ pub fn start_tts_processor(app_handle: AppHandle) {
             is_speaking.store(true, Ordering::Relaxed);
             {
                 let q = queue.lock().await;
-                emit_tts_status(&app_handle, true, q.len());
+                emit_tts_status(&app_handle, true, q.len(), skipped.load(Ordering::Relaxed));
             }
             let _ = play_tx.send(audio_data);
 
@@ -419,11 +481,12 @@ pub fn start_tts_processor(app_handle: AppHandle) {
 
             if let Some(next) = next_text {
                 log::info!("TTS prefetch: синтезируем \"{}\"", next);
-                let (next_voice, next_rate, next_volume, _) =
-                    read_voice_params(&settings).await;
+                let next_params = read_voice_params(&settings).await;
+                // Копия текста: при skip/ошибке вернём сообщение в очередь, а не потеряем
+                let next_for_requeue = next.clone();
 
                 let prefetch_handle = tauri::async_runtime::spawn(async move {
-                    edge::synthesize(&next, &next_voice, next_rate, next_volume)
+                    synthesize_with_retry(&next_params, &next)
                         .await
                         .map(|data| (next, data))
                 });
@@ -434,23 +497,33 @@ pub fn start_tts_processor(app_handle: AppHandle) {
                     let _ = rx.recv().await;
                 }
 
-                // Забираем результат prefetch
-                if !clear_queue.load(Ordering::Relaxed)
-                    && !skip_current.load(Ordering::Relaxed)
-                {
+                if clear_queue.load(Ordering::Relaxed) {
+                    // Очистка — prefetch-сообщение тоже выбрасываем (намеренно)
+                    prefetch_handle.abort();
+                    prefetched = None;
+                } else if skip_current.load(Ordering::Relaxed) {
+                    // Skip относится к ТЕКУЩЕМУ сообщению — prefetch возвращаем в очередь
+                    prefetch_handle.abort();
+                    prefetched = None;
+                    let mut q = queue.lock().await;
+                    q.push_front(next_for_requeue);
+                } else {
                     match prefetch_handle.await {
                         Ok(Ok((ptext, pdata))) => {
                             log::info!("TTS prefetch OK для \"{}\"", ptext);
                             prefetched = Some((ptext, pdata));
                         }
                         Ok(Err(e)) => {
+                            // Синтез не удался даже с повтором — сообщение пропущено
                             log::error!("Ошибка prefetch TTS: {}", e);
+                            skipped.fetch_add(1, Ordering::Relaxed);
                         }
-                        Err(_) => {}
+                        Err(_) => {
+                            // Задача упала — возвращаем сообщение в очередь
+                            let mut q = queue.lock().await;
+                            q.push_front(next_for_requeue);
+                        }
                     }
-                } else {
-                    prefetch_handle.abort();
-                    prefetched = None;
                 }
             } else {
                 // Очередь пуста — просто ждём окончания воспроизведения
@@ -462,26 +535,27 @@ pub fn start_tts_processor(app_handle: AppHandle) {
             skip_current.store(false, Ordering::Relaxed);
 
             // Пауза между сообщениями
-            let (_, _, _, pause_ms) = read_voice_params(&settings).await;
+            let pause_ms = read_voice_params(&settings).await.pause_ms;
             if pause_ms > 0 {
                 tokio::time::sleep(std::time::Duration::from_millis(pause_ms)).await;
             }
 
             {
                 let q = queue.lock().await;
-                emit_tts_status(&app_handle, false, q.len());
+                emit_tts_status(&app_handle, false, q.len(), skipped.load(Ordering::Relaxed));
             }
         }
     });
 }
 
 /// Отправить статус TTS во frontend.
-fn emit_tts_status(app_handle: &AppHandle, is_speaking: bool, queue_size: usize) {
+fn emit_tts_status(app_handle: &AppHandle, is_speaking: bool, queue_size: usize, skipped: usize) {
     let _ = app_handle.emit(
         "tts-status",
         TtsStatusPayload {
             is_speaking,
             queue_size,
+            skipped,
         },
     );
 }

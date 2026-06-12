@@ -16,6 +16,7 @@ import type { TtsStatus } from "../types";
 export const ttsStatus = writable<TtsStatus>({
   is_speaking: false,
   queue_size: 0,
+  skipped: 0,
 });
 
 /** Инициализировать TTS event listeners */

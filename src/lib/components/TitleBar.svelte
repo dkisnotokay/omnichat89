@@ -79,11 +79,11 @@
   <span class="title" data-tauri-drag-region>Omnichat89</span>
   <div class="title-buttons">
     <button
-      class="title-btn"
+      class="settings-btn"
       onclick={() => clearAllMessages()}
       title={t.clearChat}
     >
-      🗑
+      🗑 {t.clearChat}
     </button>
     <button
       class="settings-btn"

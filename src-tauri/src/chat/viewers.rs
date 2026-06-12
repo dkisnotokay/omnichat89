@@ -34,7 +34,7 @@ fn is_enabled(app_handle: &tauri::AppHandle) -> bool {
         .unwrap_or(true)
 }
 
-/// Отправить число зрителей во frontend.
+/// Отправить число зрителей во frontend и OBS overlay.
 fn emit_viewers(app_handle: &tauri::AppHandle, platform: &str, viewers: Option<u64>) {
     info!("Viewer count: {} = {:?}", platform, viewers);
     let _ = app_handle.emit(
@@ -44,6 +44,11 @@ fn emit_viewers(app_handle: &tauri::AppHandle, platform: &str, viewers: Option<u
             viewers,
         },
     );
+    // В overlay через SSE command-канал: viewers:<platform>:<число|null>
+    if let Some(overlay) = app_handle.try_state::<crate::overlay::OverlayState>() {
+        let value = viewers.map_or("null".to_string(), |v| v.to_string());
+        let _ = overlay.command_tx.send(format!("viewers:{}:{}", platform, value));
+    }
 }
 
 // ──────────────────────────────────────────────────────────
@@ -87,8 +92,51 @@ async fn fetch_twitch_viewers(token: &str, channel: &str) -> Result<Option<u64>,
     Ok(streams.data.first().map(|s| s.viewer_count))
 }
 
+/// Публичный Client-ID сайта twitch.tv (используется самим сайтом и
+/// аналогичными приложениями). Позволяет узнать число зрителей БЕЗ авторизации.
+const TWITCH_GQL_CLIENT_ID: &str = "kimne78kx3ncx6brgo4mv6wki5h1ko";
+
+/// Запросить число зрителей через внутренний GQL API Twitch (без авторизации).
+/// Возвращает None если канал оффлайн или не существует.
+async fn fetch_twitch_viewers_gql(channel: &str) -> Result<Option<u64>, String> {
+    let client = super::twitch_http_client();
+    let body = serde_json::json!({
+        "query": "query($login: String!) { user(login: $login) { stream { viewersCount } } }",
+        "variables": { "login": channel }
+    });
+
+    let resp = client
+        .post("https://gql.twitch.tv/gql")
+        .header("Client-Id", TWITCH_GQL_CLIENT_ID)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("GQL HTTP error: {}", e))?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        let body = resp.text().await.unwrap_or_default();
+        let snippet: String = body.chars().take(200).collect();
+        return Err(format!("GQL: HTTP {} — {}", status, snippet));
+    }
+
+    let v: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("GQL JSON error: {}", e))?;
+
+    let stream = &v["data"]["user"]["stream"];
+    if stream.is_null() {
+        return Ok(None); // оффлайн или канал не найден
+    }
+    Ok(stream["viewersCount"].as_u64())
+}
+
 /// Запустить фоновый опрос зрителей Twitch.
-/// Токен читается из TwitchAuth на каждом тике — подхватывает login/logout на лету.
+///
+/// С OAuth-токеном — официальный Helix API; без токена (или при ошибке
+/// Helix) — внутренний GQL API без авторизации. Токен читается из
+/// TwitchAuth на каждом тике — подхватывает login/logout на лету.
 pub fn spawn_twitch_poller(
     app_handle: tauri::AppHandle,
     channel: String,
@@ -102,13 +150,22 @@ pub fn spawn_twitch_poller(
                     let t = auth.access_token.lock().await.clone();
                     t
                 };
-                match token {
+
+                // Helix (официальный) при наличии токена, иначе/при ошибке — GQL
+                let result = match token {
                     Some(token) => match fetch_twitch_viewers(&token, &channel).await {
-                        Ok(viewers) => emit_viewers(&app_handle, "twitch", viewers),
-                        Err(e) => warn!("Viewer poller (Twitch): {}", e),
+                        Ok(v) => Ok(v),
+                        Err(e) => {
+                            warn!("Viewer poller (Twitch): Helix не сработал ({}), пробуем GQL", e);
+                            fetch_twitch_viewers_gql(&channel).await
+                        }
                     },
-                    // Анонимное подключение — счётчик недоступен
-                    None => emit_viewers(&app_handle, "twitch", None),
+                    None => fetch_twitch_viewers_gql(&channel).await,
+                };
+
+                match result {
+                    Ok(viewers) => emit_viewers(&app_handle, "twitch", viewers),
+                    Err(e) => warn!("Viewer poller (Twitch): {}", e),
                 }
             }
             tokio::time::sleep(std::time::Duration::from_secs(POLL_INTERVAL_SECS)).await;
@@ -188,6 +245,20 @@ mod tests {
         for slug in ["xqc", "classybeef", "garydavid"] {
             let res = fetch_kick_viewers(&client, slug).await;
             println!("{}: {:?}", slug, res);
+        }
+    }
+
+    /// Ручная сетевая проверка Twitch GQL (анонимный счётчик):
+    /// `cargo test probe_twitch_gql -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn probe_twitch_gql() {
+        for login in [
+            "monstercat", "xqc", "dk_okay", "stray228", "jesusavgn", "evelone192",
+            "buster", "zubarefff", "riotgames", "eslcs", "rainbow6", "papich",
+        ] {
+            let res = fetch_twitch_viewers_gql(login).await;
+            println!("{}: {:?}", login, res);
         }
     }
 }

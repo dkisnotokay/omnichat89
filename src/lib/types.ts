@@ -82,4 +82,6 @@ export interface TtsSettings {
 export interface TtsStatus {
   is_speaking: boolean;
   queue_size: number;
+  /** Пропущено сообщений (переполнение очереди / ошибки синтеза) */
+  skipped: number;
 }

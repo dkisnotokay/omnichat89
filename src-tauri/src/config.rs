@@ -40,8 +40,12 @@ pub struct AppSettings {
     pub text_effect: String,
     /// Анимация появления сообщений: "none" | "fade" | "slide"
     pub msg_animation: String,
+    /// Длительность анимации появления (мс, 100-1000)
+    pub msg_animation_ms: u32,
     /// Авто-скрытие сообщений в OBS overlay (секунды, 0 = не скрывать)
     pub overlay_hide_delay: u32,
+    /// Авто-скрытие действует и в окне приложения
+    pub hide_in_app: bool,
 
     // --- Language ---
     pub language: String,
@@ -58,7 +62,11 @@ pub struct AppSettings {
 
     // --- TTS Core ---
     pub tts_enabled: bool,
+    /// Движок синтеза: "edge" (онлайн) | "windows" (локально)
+    pub tts_engine: String,
     pub tts_voice: String,
+    /// Голос Windows-движка (DisplayName, пусто = системный по умолчанию)
+    pub tts_windows_voice: String,
     pub tts_rate: i32,
     pub tts_volume: u32,
     pub tts_max_queue_size: u32,
@@ -110,7 +118,9 @@ impl Default for AppSettings {
             font_weight: 400,
             text_effect: "none".to_string(),
             msg_animation: "fade".to_string(),
+            msg_animation_ms: 250,
             overlay_hide_delay: 0,
+            hide_in_app: false,
 
             language: "ru".to_string(),
 
@@ -121,15 +131,17 @@ impl Default for AppSettings {
             last_kick_channel: String::new(),
 
             tts_enabled: false,
+            tts_engine: "edge".to_string(),
             tts_voice: "ru-RU-DmitryNeural".to_string(),
+            tts_windows_voice: String::new(),
             tts_rate: 0,
             tts_volume: 100,
-            tts_max_queue_size: 20,
+            tts_max_queue_size: 50,
             tts_pause_ms: 300,
 
             tts_read_all: true,
             tts_read_replies: true,
-            tts_read_highlighted: false,
+            tts_read_highlighted: true,
             tts_read_subscribers: false,
             tts_read_vip: false,
             tts_read_moderators: false,
@@ -171,7 +183,9 @@ impl AppSettings {
 
         crate::tts::settings::TtsSettings {
             enabled: self.tts_enabled,
+            engine: self.tts_engine.clone(),
             voice,
+            windows_voice: self.tts_windows_voice.clone(),
             rate: self.tts_rate,
             volume: self.tts_volume as i32 - 100, // UI: 0-100 → Edge TTS: -100..0
             max_queue_size: self.tts_max_queue_size as usize,

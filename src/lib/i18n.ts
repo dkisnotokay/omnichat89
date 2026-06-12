@@ -31,7 +31,7 @@ export interface I18nStrings {
   textColor: string;
   bgColor: string;
   fontFamily: string;
-  fontFamilyHint: string;
+  fontDefault: string;
   fontWeight: string;
   weightNormal: string;
   weightMedium: string;
@@ -46,6 +46,8 @@ export interface I18nStrings {
   animNone: string;
   animFade: string;
   animSlide: string;
+  animDuration: string;
+  hideInApp: string;
 
   // Display
   showTimestamp: string;
@@ -64,6 +66,11 @@ export interface I18nStrings {
 
   // TTS main
   enableTts: string;
+  ttsEngine: string;
+  ttsEngineHint: string;
+  ttsEngineEdge: string;
+  ttsEngineWindows: string;
+  noWindowsVoices: string;
   voice: string;
   speed: string;
   volume: string;
@@ -121,6 +128,8 @@ export interface I18nStrings {
   ttsSkip: string;
   ttsClear: string;
   ttsCleared: string;
+  ttsSkipped: string;
+  ttsSkippedHint: string;
 
   // Placeholders
   twitchPlaceholder: string;
@@ -158,7 +167,7 @@ const ru: I18nStrings = {
   textColor: "Цвет текста",
   bgColor: "Цвет фона",
   fontFamily: "Шрифт",
-  fontFamilyHint: "Пустое поле — шрифт по умолчанию",
+  fontDefault: "По умолчанию",
   fontWeight: "Насыщенность шрифта",
   weightNormal: "Обычный",
   weightMedium: "Средний",
@@ -173,6 +182,8 @@ const ru: I18nStrings = {
   animNone: "Нет",
   animFade: "Появление",
   animSlide: "Выезд слева",
+  animDuration: "Длительность анимации",
+  hideInApp: "Скрывать и в приложении",
 
   showTimestamp: "Показывать время",
   showBadges: "Показывать бейджи",
@@ -188,6 +199,11 @@ const ru: I18nStrings = {
   alwaysOnTopHint: "Не работает в полноэкранных приложениях",
 
   enableTts: "Включить TTS",
+  ttsEngine: "Движок озвучки",
+  ttsEngineHint: "Edge — лучше звучит; Windows — работает без интернета",
+  ttsEngineEdge: "Edge TTS (онлайн)",
+  ttsEngineWindows: "Windows (локально)",
+  noWindowsVoices: "Голоса не найдены. Установите в Параметры Windows → Время и язык → Речь",
   voice: "Голос",
   speed: "Скорость",
   volume: "Громкость",
@@ -222,7 +238,7 @@ const ru: I18nStrings = {
   obsHint: "Вставьте этот URL в OBS → Sources → Browser",
   obsDimensions: "Рекомендуемый размер: 400 × 600 px",
   overlayHideDelay: "Скрывать сообщения через",
-  overlayHideDelayHint: "Только для OBS overlay, применяется к новым сообщениям",
+  overlayHideDelayHint: "Сообщения плавно исчезают в OBS overlay (и в приложении, если включено ниже)",
   hideDelayOff: "выкл",
   secUnit: "с",
 
@@ -239,6 +255,8 @@ const ru: I18nStrings = {
   ttsSkip: "⏭ Пропустить",
   ttsClear: "🗑 Очистить",
   ttsCleared: "✓ Очищено",
+  ttsSkipped: "пропущено",
+  ttsSkippedHint: "Очередь переполнялась или были ошибки синтеза. Сбрасывается кнопкой Очистить",
 
   twitchPlaceholder: "twitch.tv/channel или имя",
   kickPlaceholder: "kick.com/channel или имя",
@@ -273,7 +291,7 @@ const en: I18nStrings = {
   textColor: "Text color",
   bgColor: "Background color",
   fontFamily: "Font",
-  fontFamilyHint: "Leave empty for default font",
+  fontDefault: "Default",
   fontWeight: "Font weight",
   weightNormal: "Normal",
   weightMedium: "Medium",
@@ -288,6 +306,8 @@ const en: I18nStrings = {
   animNone: "None",
   animFade: "Fade in",
   animSlide: "Slide in",
+  animDuration: "Animation duration",
+  hideInApp: "Also hide in the app",
 
   showTimestamp: "Show timestamp",
   showBadges: "Show badges",
@@ -303,6 +323,11 @@ const en: I18nStrings = {
   alwaysOnTopHint: "Does not work in fullscreen apps",
 
   enableTts: "Enable TTS",
+  ttsEngine: "Speech engine",
+  ttsEngineHint: "Edge — better quality; Windows — works offline",
+  ttsEngineEdge: "Edge TTS (online)",
+  ttsEngineWindows: "Windows (local)",
+  noWindowsVoices: "No voices found. Install via Windows Settings → Time & Language → Speech",
   voice: "Voice",
   speed: "Speed",
   volume: "Volume",
@@ -337,7 +362,7 @@ const en: I18nStrings = {
   obsHint: "Paste this URL in OBS → Sources → Browser",
   obsDimensions: "Recommended size: 400 × 600 px",
   overlayHideDelay: "Hide messages after",
-  overlayHideDelayHint: "OBS overlay only, applies to new messages",
+  overlayHideDelayHint: "Messages fade out in the OBS overlay (and in the app if enabled below)",
   hideDelayOff: "off",
   secUnit: "s",
 
@@ -354,6 +379,8 @@ const en: I18nStrings = {
   ttsSkip: "⏭ Skip",
   ttsClear: "🗑 Clear",
   ttsCleared: "✓ Cleared",
+  ttsSkipped: "skipped",
+  ttsSkippedHint: "Queue overflowed or synthesis failed. Reset with the Clear button",
 
   twitchPlaceholder: "twitch.tv/channel or name",
   kickPlaceholder: "kick.com/channel or name",

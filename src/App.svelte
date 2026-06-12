@@ -525,6 +525,9 @@
         {#if $ttsStatus.queue_size > 0}
           <span class="tts-queue">{t.ttsQueue}: {$ttsStatus.queue_size}</span>
         {/if}
+        {#if $ttsStatus.skipped > 0}
+          <span class="tts-skipped" title={t.ttsSkippedHint}>{t.ttsSkipped}: {$ttsStatus.skipped}</span>
+        {/if}
         <div class="tts-buttons">
           <button class="tts-btn" onclick={() => ttsSkip()}>{t.ttsSkip}</button>
           <button
@@ -754,6 +757,12 @@
 
   .tts-queue {
     font-size: 0.75rem;
+  }
+
+  .tts-skipped {
+    font-size: 0.75rem;
+    color: #e67e22;
+    cursor: help;
   }
 
   .tts-buttons {

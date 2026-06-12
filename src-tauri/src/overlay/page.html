@@ -44,19 +44,43 @@ body {
   overflow-wrap: break-word;
 }
 
-/* Анимация появления — класс на #chat из настроек (msgAnimation) */
-#chat.anim-fade .msg { animation: fadeIn 0.25s ease-out; }
-#chat.anim-slide .msg { animation: slideIn 0.25s ease-out; }
+/* Анимация появления — класс на #chat из настроек (msgAnimation),
+   длительность — CSS-переменная из настроек (msgAnimationMs) */
+#chat.anim-fade .msg { animation: fadeIn var(--msg-anim-duration, 250ms) ease-out; }
+#chat.anim-slide .msg { animation: slideIn var(--msg-anim-duration, 250ms) ease-out; }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateX(-16px); }
+  from { opacity: 0; transform: translateX(-40px); }
   to   { opacity: 1; transform: translateX(0); }
 }
+
+/* --- Бейдж счётчика зрителей (правый верхний угол) --- */
+#viewers {
+  position: fixed;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 8px;
+  z-index: 100;
+}
+#viewers:empty { display: none; }
+.viewers-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: #fff;
+}
+.viewers-badge .msg-platform-icon { display: inline-block; }
 
 /* Авто-скрытие сообщения (overlayHideDelay) */
 .msg.msg-fading {
@@ -172,12 +196,16 @@ body {
 </style>
 </head>
 <body>
+<div id="viewers"></div>
 <div id="chat" class="show-badges show-platform show-system-events anim-fade"></div>
 <script>
 (function() {
   var chatEl = document.getElementById('chat');
+  var viewersEl = document.getElementById('viewers');
   var maxMessages = 500;
   var hideDelayMs = 0; // авто-скрытие сообщений (0 = выключено)
+  var showViewers = true; // тумблер showViewerCount из настроек
+  var viewerCounts = {}; // platform → число или null
   var currentPort = window.location.port;
   var DEFAULT_FONT = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
 
@@ -252,13 +280,20 @@ body {
     }
     chatEl.style.textShadow = shadow;
 
-    // Анимация появления сообщений
+    // Анимация появления сообщений + длительность
     var anim = s.msgAnimation || 'fade';
     chatEl.classList.toggle('anim-fade', anim === 'fade');
     chatEl.classList.toggle('anim-slide', anim === 'slide');
+    document.documentElement.style.setProperty(
+      '--msg-anim-duration', (s.msgAnimationMs || 250) + 'ms'
+    );
 
     // Авто-скрытие сообщений (секунды → мс)
     hideDelayMs = (s.overlayHideDelay || 0) * 1000;
+
+    // Счётчик зрителей
+    showViewers = s.showViewerCount !== false;
+    renderViewers();
 
     // Лимит сообщений из настроек
     if (s.maxMessages >= 50 && s.maxMessages <= 5000) {
@@ -409,6 +444,25 @@ body {
     while (chatEl.children.length > maxMessages) chatEl.removeChild(chatEl.firstChild);
   }
 
+  /* ═══════ Счётчик зрителей ═══════ */
+  function renderViewers() {
+    if (!showViewers) {
+      viewersEl.innerHTML = '';
+      return;
+    }
+    var html = '';
+    var platforms = ['twitch', 'kick'];
+    for (var i = 0; i < platforms.length; i++) {
+      var p = platforms[i];
+      var count = viewerCounts[p];
+      if (count == null) continue;
+      var icon = (p === 'twitch') ? TWITCH_ICON : KICK_ICON;
+      html += '<span class="viewers-badge">' + icon +
+        Number(count).toLocaleString('ru-RU') + '</span>';
+    }
+    viewersEl.innerHTML = html;
+  }
+
   /* ═══════ Авто-скрытие: плавно скрыть и удалить сообщение ═══════ */
   function scheduleHide(el) {
     setTimeout(function() {
@@ -479,6 +533,16 @@ body {
         if (userPlatform) sel = '[data-platform="' + CSS.escape(userPlatform) + '"]' + sel;
         var els = chatEl.querySelectorAll(sel);
         for (var i = 0; i < els.length; i++) markDeleted(els[i]);
+      } else if (cmd.indexOf('viewers:') === 0) {
+        // Формат: viewers:<platform>:<число|null>
+        var vrest = cmd.substring(8);
+        var vsep = vrest.indexOf(':');
+        if (vsep > 0) {
+          var vplatform = vrest.slice(0, vsep);
+          var vvalue = vrest.slice(vsep + 1);
+          viewerCounts[vplatform] = (vvalue === 'null') ? null : parseInt(vvalue, 10);
+          renderViewers();
+        }
       }
     };
     ctrlSource.onerror = function() {

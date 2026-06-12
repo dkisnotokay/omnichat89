@@ -8,6 +8,7 @@
    */
   import type { ChatMessage, EmoteRef } from "../types";
   import { badgeMap } from "../stores/chat";
+  import { settings } from "../stores/settings";
   import twitchIcon from "../assets/twitch-icon.svg";
   import kickIcon from "../assets/kick-icon.svg";
   import { kickBadgeUrls } from "../assets/kick-badges";
@@ -90,6 +91,32 @@
   /** Сегменты текущего сообщения (текст + эмоуты) */
   const segments = $derived(buildSegments(msg.message, msg.emotes));
 
+  // ── Авто-скрытие в приложении (hideInApp + overlayHideDelay) ──
+  /** Сообщение гаснет (CSS transition) */
+  let fading = $state(false);
+  /** Сообщение полностью скрыто (убрано из DOM, в store остаётся) */
+  let gone = $state(false);
+
+  $effect(() => {
+    const delaySec = $settings.overlayHideDelay;
+    const enabled = $settings.hideInApp && delaySec > 0;
+    if (!enabled) {
+      // Настройку выключили — вернуть скрытые сообщения
+      fading = false;
+      gone = false;
+      return;
+    }
+    // Отсчёт от времени сообщения: старые скрываются сразу, новые — по таймеру
+    const elapsed = Date.now() - msg.timestamp;
+    const remaining = Math.max(0, delaySec * 1000 - elapsed);
+    const fadeTimer = setTimeout(() => { fading = true; }, remaining);
+    const goneTimer = setTimeout(() => { gone = true; }, remaining + 600);
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(goneTimer);
+    };
+  });
+
   /**
    * 15 цветов по умолчанию, которые Twitch назначает пользователям без заданного цвета.
    * Это официальный набор — те же цвета, что видны на twitch.tv.
@@ -138,8 +165,13 @@
   }
 </script>
 
-{#if !isSystemEvent || showSystemEvents}
-<div class="chat-message" class:system-event={isSystemEvent} class:highlighted-msg={isHighlighted}>
+{#if (!isSystemEvent || showSystemEvents) && !gone}
+<div
+  class="chat-message"
+  class:system-event={isSystemEvent}
+  class:highlighted-msg={isHighlighted}
+  class:msg-fading={fading}
+>
   <!-- Баннер системного события (sub, raid, gift) -->
   {#if isSystemEvent && msg.system_message}
     <div class="system-banner">
@@ -241,6 +273,12 @@
 
   .chat-message:hover {
     background: rgba(255, 255, 255, 0.05);
+  }
+
+  /* Авто-скрытие: плавное затухание перед удалением из DOM */
+  .chat-message.msg-fading {
+    opacity: 0;
+    transition: opacity 0.6s ease-out;
   }
 
   .message-line {

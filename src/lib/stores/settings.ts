@@ -35,8 +35,12 @@ export interface AppSettings {
   textEffect: "none" | "outline" | "shadow";
   /** Анимация появления сообщений: none | fade | slide */
   msgAnimation: "none" | "fade" | "slide";
+  /** Длительность анимации появления (мс, 100-1000) */
+  msgAnimationMs: number;
   /** Авто-скрытие сообщений в OBS overlay (сек, 0 = не скрывать) */
   overlayHideDelay: number;
+  /** Авто-скрытие действует и в окне приложения */
+  hideInApp: boolean;
 
   // --- Язык интерфейса ---
   language: "ru" | "en";
@@ -51,7 +55,11 @@ export interface AppSettings {
 
   // --- TTS настройки ---
   ttsEnabled: boolean;
+  /** Движок синтеза: edge (онлайн) | windows (локально) */
+  ttsEngine: "edge" | "windows";
   ttsVoice: string;
+  /** Голос Windows-движка (DisplayName, пусто = системный) */
+  ttsWindowsVoice: string;
   ttsRate: number;
   ttsVolume: number;
   ttsMaxQueueSize: number;
@@ -94,7 +102,9 @@ export const defaultSettings: AppSettings = {
   fontWeight: 400,
   textEffect: "none",
   msgAnimation: "fade",
+  msgAnimationMs: 250,
   overlayHideDelay: 0,
+  hideInApp: false,
 
   language: "ru",
 
@@ -105,14 +115,16 @@ export const defaultSettings: AppSettings = {
   lastKickChannel: "",
 
   ttsEnabled: false,
+  ttsEngine: "edge",
   ttsVoice: "ru-RU-DmitryNeural",
+  ttsWindowsVoice: "",
   ttsRate: 0,
   ttsVolume: 100,
-  ttsMaxQueueSize: 20,
+  ttsMaxQueueSize: 50,
   ttsPauseMs: 300,
   ttsReadAll: true,
   ttsReadReplies: true,
-  ttsReadHighlighted: false,
+  ttsReadHighlighted: true,
   ttsReadSubscribers: false,
   ttsReadVip: false,
   ttsReadModerators: false,
@@ -218,6 +230,7 @@ export function applyCssVariables(s: AppSettings): void {
   );
   root.style.setProperty("--chat-font-weight", String(s.fontWeight || 400));
   root.style.setProperty("--chat-text-shadow", textEffectCss(s.textEffect));
+  root.style.setProperty("--msg-anim-duration", `${s.msgAnimationMs || 250}ms`);
 
   // Обновить lang атрибут HTML для screen readers и spellcheck
   root.lang = s.language;
