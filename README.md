@@ -9,13 +9,15 @@ Lightweight stream chat overlay for **Twitch** and **Kick** — both chats in on
 ## Features
 
 - **Twitch + Kick** — two chats in one app
-- **OBS Overlay** — Browser Source for your stream (localhost)
-- **TTS** — Edge TTS with multiple voices (RU/EN), filters, queue, and controls
+- **Viewer counter** — live viewer count for both platforms, no login required (in the app and the OBS overlay)
+- **OBS Overlay** — Browser Source for your stream (localhost), syncs settings and moderation in real time
+- **TTS** — two engines: Edge TTS (online, neural voices) or **local Windows voices (fully offline)**; filters, queue with skip counter, random voice
+- **Customization** — any system font, weight, text outline/shadow, message animations, auto-hide messages after a delay
 - **Twitch OAuth** — badges and emotes via Helix API
 - **System events** — subs, raids, gifts, highlighted messages
-- **Moderation sync** — message deletion, bans, chat clear (app + overlay)
-- **Settings** — font, colors, opacity, language (RU/EN)
+- **Moderation sync** — message deletion, bans, per-platform chat clear (app + overlay)
 - **Auto-reconnect** — exponential backoff on connection loss
+- **Localization** — Russian and English UI
 - **Secure** — Windows Credential Manager for token storage, CSP, CSRF protection
 
 ## Download
@@ -57,7 +59,7 @@ npm run tauri build    # Build installer
 | Backend | Rust (tokio, axum, reqwest) |
 | Twitch | IRC WebSocket |
 | Kick | Pusher WebSocket |
-| TTS | Microsoft Edge TTS (WebSocket) |
+| TTS | Microsoft Edge TTS (WebSocket) / Windows SpeechSynthesis (WinRT, offline) |
 | OBS Overlay | HTTP + SSE (axum) |
 | Token storage | Windows Credential Manager (keyring) |
 
