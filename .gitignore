@@ -32,3 +32,6 @@ CLAUDE.md
 # Updater signing keys (must never be committed)
 *.key
 *.key.pub
+
+# Temp commit message files
+commit-msg.txt
