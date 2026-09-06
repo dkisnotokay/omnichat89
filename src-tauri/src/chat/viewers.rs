@@ -242,7 +242,12 @@ mod tests {
             .build()
             .unwrap();
         let _ = client.get("https://kick.com/").send().await;
-        for slug in ["xqc", "classybeef", "garydavid"] {
+        let extra = std::env::var("PROBE_KICK").unwrap_or_default();
+        let mut slugs = vec!["xqc", "classybeef", "garydavid"];
+        if !extra.is_empty() {
+            slugs.push(&extra);
+        }
+        for slug in slugs {
             let res = fetch_kick_viewers(&client, slug).await;
             println!("{}: {:?}", slug, res);
         }

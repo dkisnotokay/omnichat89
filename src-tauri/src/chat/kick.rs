@@ -1001,6 +1001,90 @@ fn chrono_parse_timestamp(ts: &str) -> Option<i64> {
     Some(timestamp_secs * 1000) // в миллисекундах
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_util::{SinkExt, StreamExt};
+
+    /// Ручная сетевая проверка Kick: chatroom_id + Pusher WebSocket.
+    /// `cargo test probe_kick_pusher -- --ignored --nocapture`
+    ///
+    /// Проверяет, что Pusher app key жив, подписка подтверждается
+    /// и события чата приходят в ожидаемом формате.
+    #[tokio::test]
+    #[ignore]
+    async fn probe_kick_pusher() {
+        let slug = std::env::var("PROBE_KICK").unwrap_or_else(|_| "suspendas".to_string());
+
+        let chatroom_id = match fetch_chatroom_id(&slug).await {
+            Ok(id) => {
+                println!("chatroom_id({}) = {}", slug, id);
+                id
+            }
+            Err(e) => panic!("fetch_chatroom_id сломан: {}", e),
+        };
+
+        let (ws, _) = tokio_tungstenite::connect_async(KICK_PUSHER_URL)
+            .await
+            .expect("Pusher connect");
+        let (mut write, mut read) = ws.split();
+
+        let mut established = false;
+        let mut subscribed = false;
+        let mut chat_events = 0;
+        let deadline = tokio::time::sleep(std::time::Duration::from_secs(25));
+        tokio::pin!(deadline);
+
+        loop {
+            tokio::select! {
+                _ = &mut deadline => break,
+                msg = read.next() => match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        if let Ok(pm) = serde_json::from_str::<PusherMessage>(&text) {
+                            match pm.event.as_str() {
+                                "pusher:connection_established" => {
+                                    established = true;
+                                    let sub = serde_json::json!({
+                                        "event": "pusher:subscribe",
+                                        "data": { "channel": format!("chatrooms.{}.v2", chatroom_id) }
+                                    });
+                                    write.send(Message::Text(sub.to_string().into())).await.unwrap();
+                                }
+                                "pusher_internal:subscription_succeeded" => subscribed = true,
+                                "pusher:error" => println!("  pusher error: {}", text),
+                                e if e.contains("ChatMessage") => {
+                                    let data_str = pm.data.as_str().map(|s| s.to_string())
+                                        .unwrap_or_else(|| pm.data.to_string());
+                                    if let Some(m) = parse_kick_message(&data_str, &slug) {
+                                        if chat_events < 3 {
+                                            println!("  msg: {}: {}", m.display_name, m.message);
+                                        }
+                                        chat_events += 1;
+                                    } else {
+                                        println!("  ПАРСИНГ СЛОМАН для: {}",
+                                            data_str.chars().take(200).collect::<String>());
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    Some(Err(e)) => { println!("  ws error: {}", e); break; }
+                    None => break,
+                    _ => {}
+                }
+            }
+        }
+
+        println!(
+            "kick pusher: established={} subscribed={} parsed_msgs={}",
+            established, subscribed, chat_events
+        );
+        assert!(established, "Pusher connection_established не получен — app key протух?");
+        assert!(subscribed, "Подписка на chatroom не подтверждена");
+    }
+}
+
 /// Конвертирует дату (year, month, day) в количество дней с Unix epoch.
 /// Алгоритм из Howard Hinnant's date algorithms.
 fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {

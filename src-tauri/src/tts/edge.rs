@@ -225,3 +225,22 @@ fn escape_xml(text: &str) -> String {
         .replace('"', "&quot;")
         .replace('\'', "&apos;")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Ручная сетевая проверка Edge TTS (ломается при ротации Sec-MS-GEC-Version):
+    /// `cargo test probe_edge_tts -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn probe_edge_tts() {
+        println!("SEC_MS_GEC_VERSION = {}", SEC_MS_GEC_VERSION);
+        let res = synthesize("Проверка связи", "ru-RU-DmitryNeural", 0, 0).await;
+        match &res {
+            Ok(data) => println!("edge tts OK: {} байт", data.len()),
+            Err(e) => println!("edge tts FAILED: {}", e),
+        }
+        assert!(res.is_ok(), "Edge TTS не работает: {:?}", res.err());
+    }
+}

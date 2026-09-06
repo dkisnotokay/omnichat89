@@ -844,6 +844,82 @@ fn handle_clearchat(raw: &str, app_handle: &tauri::AppHandle) {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use futures_util::{SinkExt, StreamExt};
+
+    /// Ручная сетевая проверка анонимного подключения к Twitch IRC:
+    /// `cargo test probe_twitch_irc -- --ignored --nocapture`
+    ///
+    /// Проверяет, что justinfan-подключение всё ещё принимается, приходит
+    /// ROOMSTATE и парсятся PRIVMSG.
+    #[tokio::test]
+    #[ignore]
+    async fn probe_twitch_irc() {
+        let channel = std::env::var("PROBE_CHANNEL").unwrap_or_else(|_| "eslcs".to_string());
+        let (ws, _) = tokio_tungstenite::connect_async(TWITCH_IRC_URL)
+            .await
+            .expect("WebSocket connect");
+        let (mut write, mut read) = ws.split();
+
+        write
+            .send(Message::Text(
+                "CAP REQ :twitch.tv/tags twitch.tv/commands\r\n".into(),
+            ))
+            .await
+            .unwrap();
+        write
+            .send(Message::Text("NICK justinfan12345\r\n".into()))
+            .await
+            .unwrap();
+        write
+            .send(Message::Text(format!("JOIN #{}\r\n", channel).into()))
+            .await
+            .unwrap();
+
+        let mut got_roomstate = false;
+        let mut privmsg_count = 0;
+        let deadline = tokio::time::sleep(std::time::Duration::from_secs(20));
+        tokio::pin!(deadline);
+
+        loop {
+            tokio::select! {
+                _ = &mut deadline => break,
+                msg = read.next() => match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        for line in text.lines() {
+                            if line.starts_with("PING") {
+                                let _ = write.send(Message::Text("PONG :tmi.twitch.tv\r\n".into())).await;
+                            } else if line.contains("ROOMSTATE") {
+                                got_roomstate = true;
+                            } else if line.contains("PRIVMSG") {
+                                if let Some(m) = parse_privmsg(line, &channel) {
+                                    if privmsg_count < 3 {
+                                        println!("  msg: {}: {}", m.display_name, m.message);
+                                    }
+                                    privmsg_count += 1;
+                                }
+                            } else if line.contains("NOTICE") || line.contains("Login authentication failed") {
+                                println!("  NOTICE: {}", line);
+                            }
+                        }
+                    }
+                    Some(Err(e)) => { println!("  ws error: {}", e); break; }
+                    None => break,
+                    _ => {}
+                }
+            }
+        }
+
+        println!(
+            "twitch irc: roomstate={} parsed_privmsg={} (канал #{})",
+            got_roomstate, privmsg_count, channel
+        );
+        assert!(got_roomstate, "ROOMSTATE не получен — анонимный вход сломан?");
+    }
+}
+
 /// Обрабатывает IRC CLEARMSG — удаление конкретного сообщения.
 ///
 /// Формат: `@login=user;target-msg-id=abc-123 :tmi.twitch.tv CLEARMSG #channel :message text`
