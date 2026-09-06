@@ -49,7 +49,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJFMUIzQzAwODUyRkM3RDgKUldUWXh5K0ZBRHdiTHE4S2o2bng1TEdnOE1OOGpqRzZhNC9nekFhWkR6bHFwdHB2a2d5VzRNYTEK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDhCNzcxODQ0QTNCOTcyMTcKUldRWGNybWpSQmgzaTU1T2NuVVpEOUNjbmZVUS9hT0F4ak5vWWdQbXZ1S24rWjFFZ2FxWEZDZkwK",
       "endpoints": [
         "https://github.com/dkisnotokay/omnichat89/releases/latest/download/latest.json"
       ],

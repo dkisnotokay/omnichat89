@@ -741,7 +741,12 @@ async fn handle_pusher_message<S>(
                     (
                         "resub",
                         if is_ru {
-                            format!("{} переподписался на {} мес.!", username, months)
+                            format!(
+                                "{} переподписался на {} {}!",
+                                username,
+                                months,
+                                super::plural_ru(months, "месяц", "месяца", "месяцев")
+                            )
                         } else {
                             format!("{} resubscribed for {} months!", username, months)
                         },
@@ -804,7 +809,12 @@ async fn handle_pusher_message<S>(
                 let count = gift.gifted_usernames.map(|v| v.len()).unwrap_or(1);
                 let lang = get_language(app_handle);
                 let system_message = if lang == "ru" {
-                    format!("{} подарил {} подписок!", gifter, count)
+                    format!(
+                        "{} подарил {} {}!",
+                        gifter,
+                        count,
+                        super::plural_ru(count as u32, "подписку", "подписки", "подписок")
+                    )
                 } else {
                     format!("{} gifted {} subs!", gifter, count)
                 };

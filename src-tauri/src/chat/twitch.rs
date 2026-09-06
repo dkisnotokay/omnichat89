@@ -590,8 +590,10 @@ fn build_system_message(tags: &[(&str, &str)], msg_id: &str, lang: &str) -> Opti
                 .unwrap_or(1);
             if is_ru {
                 Some(format!(
-                    "{} переподписался на {} мес.!",
-                    display_name, months
+                    "{} переподписался на {} {}!",
+                    display_name,
+                    months,
+                    super::plural_ru(months, "месяц", "месяца", "месяцев")
                 ))
             } else {
                 Some(format!(
@@ -625,7 +627,12 @@ fn build_system_message(tags: &[(&str, &str)], msg_id: &str, lang: &str) -> Opti
                 .and_then(|(_, v)| v.parse::<u32>().ok())
                 .unwrap_or(1);
             if is_ru {
-                Some(format!("{} подарил {} подписок!", display_name, count))
+                Some(format!(
+                    "{} подарил {} {}!",
+                    display_name,
+                    count,
+                    super::plural_ru(count, "подписку", "подписки", "подписок")
+                ))
             } else {
                 Some(format!("{} gifted {} subs!", display_name, count))
             }
@@ -638,8 +645,10 @@ fn build_system_message(tags: &[(&str, &str)], msg_id: &str, lang: &str) -> Opti
                 .unwrap_or(0);
             if is_ru {
                 Some(format!(
-                    "{} рейдит с {} зрителями!",
-                    display_name, viewers
+                    "{} рейдит с {} {}!",
+                    display_name,
+                    viewers,
+                    super::plural_ru(viewers, "зрителем", "зрителями", "зрителями")
                 ))
             } else {
                 Some(format!(
@@ -663,8 +672,10 @@ fn build_system_message(tags: &[(&str, &str)], msg_id: &str, lang: &str) -> Opti
                 .unwrap_or(0);
             if is_ru {
                 Some(format!(
-                    "{} смотрит {} стримов подряд!",
-                    display_name, count
+                    "{} смотрит {} {} подряд!",
+                    display_name,
+                    count,
+                    super::plural_ru(count, "стрим", "стрима", "стримов")
                 ))
             } else {
                 Some(format!(
@@ -933,6 +944,28 @@ mod tests {
         assert_eq!((gif.start, gif.end), (0, 33));
         // Позиции покрывают весь текст-описание
         assert_eq!(msg.message.chars().count(), 34);
+    }
+
+    /// Реальный USERNOTICE со стриком просмотра, снятый с живого канала.
+    const WATCH_STREAK_LINE: &str = "@badge-info=;badges=;color=#8A2BE2;display-name=ahmed_hcy;emotes=;flags=;id=2bf23ef2-038c-4a70-8ef8-a0f56080e782;login=ahmed_hcy;mod=0;msg-id=viewermilestone;msg-param-category=watch-streak;msg-param-copoReward=350;msg-param-value=3;room-id=63936838;subscriber=0;system-msg=ahmed_hcy\\swatched\\s3\\sconsecutive\\sstreams\\sand\\ssparked\\sa\\swatch\\sstreak!;tmi-sent-ts=1788697244990;user-id=1475875045;user-type=;vip=0 :tmi.twitch.tv USERNOTICE #mastu :Ww BigAlain";
+
+    #[test]
+    fn parses_watch_streak() {
+        let msg = parse_usernotice(WATCH_STREAK_LINE, "mastu", "ru").expect("стрик распарсен");
+        assert_eq!(msg.event_type.as_deref(), Some("viewermilestone"));
+        assert_eq!(msg.display_name, "ahmed_hcy");
+        assert_eq!(
+            msg.system_message.as_deref(),
+            Some("ahmed_hcy смотрит 3 стрима подряд!")
+        );
+        // Текст, который зритель приложил к стрику, сохраняется
+        assert_eq!(msg.message, "Ww BigAlain");
+
+        let en = parse_usernotice(WATCH_STREAK_LINE, "mastu", "en").unwrap();
+        assert_eq!(
+            en.system_message.as_deref(),
+            Some("ahmed_hcy watched 3 streams in a row!")
+        );
     }
 
     #[test]
