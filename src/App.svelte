@@ -38,6 +38,7 @@
   import { auth, authReady, initAuth, loginTwitch, logoutTwitch } from "./lib/stores/auth";
   import { initBadgeListener } from "./lib/stores/chat";
   import { ttsStatus, initTtsListeners, ttsSkip, ttsClearQueue } from "./lib/stores/tts";
+  import { updater, initUpdaterCheck, installUpdate, dismissUpdate } from "./lib/stores/updater";
   import { getStrings } from "./lib/i18n";
   import ContextMenu from "./lib/components/ContextMenu.svelte";
   import twitchIcon from "./lib/assets/twitch-icon.svg";
@@ -128,6 +129,7 @@
       initChatListeners();
       initBadgeListener();
       initTtsListeners();
+      initUpdaterCheck();
 
       // Загружаем настройки, затем сразу подключаемся к сохранённым каналам
       initSettingsSync().then(() => {
@@ -378,6 +380,24 @@
 {:else}
   <main>
     <TitleBar />
+
+    <!-- Баннер обновления (появляется, когда найдена новая версия) -->
+    {#if $updater.stage === "available"}
+      <div class="update-bar">
+        <span class="update-text">⬆ {t.updateAvailable} {$updater.version}</span>
+        <button class="update-btn primary" onclick={() => installUpdate()}>{t.updateNow}</button>
+        <button class="update-btn" onclick={() => dismissUpdate()}>{t.updateLater}</button>
+      </div>
+    {:else if $updater.stage === "downloading"}
+      <div class="update-bar">
+        <span class="update-text">{t.updateDownloading}... {$updater.progress}%</span>
+        <div class="update-progress"><div class="update-progress-fill" style="width: {$updater.progress}%"></div></div>
+      </div>
+    {:else if $updater.stage === "ready"}
+      <div class="update-bar">
+        <span class="update-text">{t.updateReady}</span>
+      </div>
+    {/if}
 
     <!-- ═══════════════════════════════════════════════════ -->
     <!-- TWITCH BAR                                         -->
@@ -729,6 +749,66 @@
 
   .input-error {
     border-color: #e74c3c !important;
+  }
+
+  /* --- Баннер обновления --- */
+  .update-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: linear-gradient(90deg, rgba(102, 126, 234, 0.25), rgba(118, 75, 162, 0.25));
+    border-bottom: 1px solid rgba(102, 126, 234, 0.4);
+    font-size: 0.78rem;
+    color: var(--text-color, #e0e0e0);
+    flex-shrink: 0;
+  }
+
+  .update-text {
+    font-weight: 600;
+  }
+
+  .update-btn {
+    margin-left: auto;
+    border: none;
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text-color, #e0e0e0);
+    font-size: 0.75rem;
+    padding: 3px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .update-btn + .update-btn {
+    margin-left: 0;
+  }
+
+  .update-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .update-btn.primary {
+    background: var(--accent-color, #667eea);
+    color: #fff;
+  }
+
+  .update-btn.primary:hover {
+    background: var(--accent-hover, #764ba2);
+  }
+
+  .update-progress {
+    flex: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .update-progress-fill {
+    height: 100%;
+    background: var(--accent-color, #667eea);
+    transition: width 0.2s;
   }
 
   /* --- TTS Bar --- */

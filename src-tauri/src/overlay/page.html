@@ -155,6 +155,16 @@ body {
   object-fit: contain;
 }
 
+/* --- GIF (Twitch) — крупнее эмоута, с новой строки --- */
+.msg-emote.msg-gif {
+  display: block;
+  height: auto;
+  max-height: 150px;
+  max-width: 100%;
+  margin: 3px 0;
+  border-radius: 6px;
+}
+
 /* --- Удалённое сообщение --- */
 .msg-deleted .msg-text {
   color: #888;
@@ -176,6 +186,13 @@ body {
   padding: 2px 8px;
   font-weight: 500;
 }
+
+/* --- Подарок Kicks (Kick) — зелёный цвет платформы --- */
+.msg-system.msg-kicks-gift {
+  border-left-color: #53fc18;
+  background: rgba(83, 252, 24, 0.09);
+}
+.msg-kicks-gift .msg-system-banner { color: #7ee65a; }
 #chat:not(.show-system-events) .msg-system { display: none; }
 
 /* --- Выделенное сообщение (highlighted) --- */
@@ -351,6 +368,7 @@ body {
     var isAction = msg.event_type === 'action';
     var isSystem = msg.event_type && msg.event_type !== 'highlighted' && msg.event_type !== 'action';
     if (isSystem) cls += ' msg-system';
+    if (msg.event_type === 'kicks_gift') cls += ' msg-kicks-gift';
     if (msg.event_type === 'highlighted') cls += ' msg-highlighted';
     if (isAction) cls += ' msg-action';
     el.className = cls;
@@ -433,7 +451,8 @@ body {
     for (var i = 0; i < emotes.length; i++) {
       var em = emotes[i];
       if (em.start > last) parts.push(escapeHtml(chars.slice(last, em.start).join('')));
-      parts.push('<img class="msg-emote" src="' + escapeHtml(em.url) +
+      parts.push('<img class="msg-emote' + (em.is_gif ? ' msg-gif' : '') +
+        '" src="' + escapeHtml(em.url) +
         '" alt="' + escapeHtml(em.code) +
         '" title="' + escapeHtml(em.code) + '">');
       last = em.end + 1;

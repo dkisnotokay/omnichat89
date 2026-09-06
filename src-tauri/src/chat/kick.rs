@@ -60,6 +60,10 @@ impl Default for KickState {
 /// Ответ GET /api/v2/channels/{slug}
 #[derive(Debug, Deserialize)]
 struct KickChannelResponse {
+    /// ID канала вещателя — нужен для подписки на channel_{id},
+    /// куда приходят Kicks-подарки и прогресс целей
+    #[serde(default)]
+    id: Option<u64>,
     chatroom: KickChatroom,
 }
 
@@ -179,6 +183,34 @@ struct KickGiftedSubscriptionsData {
     gifted_usernames: Option<Vec<String>>,
 }
 
+/// Событие Kicks-подарка (монетизация Kick, аналог битов Twitch).
+/// Событие `KicksGifted` — без префикса `App\Events\`.
+#[derive(Debug, Deserialize)]
+struct KicksGiftedData {
+    /// Необязательное сообщение от зрителя к подарку
+    #[serde(default)]
+    message: Option<String>,
+    sender: Option<KicksSender>,
+    gift: Option<KicksGift>,
+}
+
+/// Отправитель Kicks-подарка.
+#[derive(Debug, Deserialize)]
+struct KicksSender {
+    username: Option<String>,
+    username_color: Option<String>,
+}
+
+/// Сам подарок.
+#[derive(Debug, Deserialize)]
+struct KicksGift {
+    /// Отображаемое название ("Hell Yeah")
+    name: Option<String>,
+    /// Количество (для одного подарка — 1)
+    #[serde(default)]
+    amount: Option<u32>,
+}
+
 // ──────────────────────────────────────────────────────────
 // Публичные функции
 // ──────────────────────────────────────────────────────────
@@ -194,8 +226,9 @@ struct KickGiftedSubscriptionsData {
 /// * `slug` — имя канала Kick (slug, например "xqc")
 ///
 /// # Возвращает
-/// `chatroom_id` (u64) или ошибку.
-pub async fn fetch_chatroom_id(slug: &str) -> Result<u64, String> {
+/// `(chatroom_id, channel_id)` — второй нужен для подписки на события
+/// канала (Kicks-подарки); `None` если получен только из HTML-фолбэка.
+pub async fn fetch_chatroom_id(slug: &str) -> Result<(u64, Option<u64>), String> {
     // Валидация slug: только a-z, 0-9, _, - (до 50 символов)
     let slug_lower = slug.to_lowercase();
     if slug_lower.is_empty()
@@ -265,12 +298,12 @@ pub async fn fetch_chatroom_id(slug: &str) -> Result<u64, String> {
     ))
 }
 
-/// Пробует получить chatroom_id через Kick API.
+/// Пробует получить (chatroom_id, channel_id) через Kick API.
 async fn try_kick_api(
     client: &reqwest::Client,
     url: &str,
     slug: &str,
-) -> Result<u64, String> {
+) -> Result<(u64, Option<u64>), String> {
     let response = client
         .get(url)
         .header("Accept", "application/json")
@@ -309,10 +342,10 @@ async fn try_kick_api(
         .map_err(|e| format!("Ошибка парсинга: {}", e))?;
 
     info!(
-        "Kick chatroom_id для '{}': {} (через API)",
-        slug, channel.chatroom.id
+        "Kick chatroom_id для '{}': {} (channel_id: {:?}, через API)",
+        slug, channel.chatroom.id, channel.id
     );
-    Ok(channel.chatroom.id)
+    Ok((channel.chatroom.id, channel.id))
 }
 
 /// Fallback: извлекает chatroom_id из HTML страницы канала.
@@ -320,7 +353,7 @@ async fn try_kick_api(
 async fn try_kick_html(
     client: &reqwest::Client,
     slug: &str,
-) -> Result<u64, String> {
+) -> Result<(u64, Option<u64>), String> {
     let page_url = format!("https://kick.com/{}", slug);
 
     let response = client
@@ -369,10 +402,10 @@ async fn try_kick_html(
             if let Ok(id) = num_str.parse::<u64>() {
                 if id > 0 {
                     info!(
-                        "Kick chatroom_id для '{}': {} (из HTML)",
+                        "Kick chatroom_id для '{}': {} (из HTML, без channel_id)",
                         slug, id
                     );
-                    return Ok(id);
+                    return Ok((id, None));
                 }
             }
         }
@@ -394,6 +427,7 @@ async fn try_kick_html(
 pub async fn connect_and_listen(
     channel: String,
     chatroom_id: u64,
+    channel_id: Option<u64>,
     app_handle: tauri::AppHandle,
     should_stop: Arc<AtomicBool>,
 ) {
@@ -499,6 +533,23 @@ pub async fn connect_and_listen(
         warn!("Kick: ошибка подписки на chatrooms.{}: {}", chatroom_id, e);
     } else {
         info!("Kick: подписались на chatrooms.{}", chatroom_id);
+    }
+
+    // Канал вещателя: сюда приходят Kicks-подарки (KicksGifted) и
+    // прогресс целей канала — в chatrooms.* этих событий нет.
+    if let Some(cid) = channel_id {
+        let subscribe_channel = serde_json::json!({
+            "event": "pusher:subscribe",
+            "data": { "channel": format!("channel_{}", cid) }
+        });
+        if let Err(e) = write
+            .send(Message::Text(subscribe_channel.to_string().into()))
+            .await
+        {
+            warn!("Kick: ошибка подписки на channel_{}: {}", cid, e);
+        } else {
+            info!("Kick: подписались на channel_{} (Kicks-подарки)", cid);
+        }
     }
 
     // Уведомляем frontend о подключении
@@ -788,6 +839,36 @@ async fn handle_pusher_message<S>(
             }
         }
 
+        // Kicks-подарок (монетизация Kick, аналог битов Twitch).
+        // Событие без префикса App\Events\ — так его шлёт Kick.
+        "KicksGifted" => {
+            let data_str = match pusher_msg.data.as_str() {
+                Some(s) => s.to_string(),
+                None => match serde_json::to_string(&pusher_msg.data) {
+                    Ok(s) => s,
+                    Err(_) => return,
+                },
+            };
+
+            let lang = get_language(app_handle);
+            if let Some(chat_msg) = parse_kicks_gift(&data_str, channel, &lang) {
+                info!(
+                    "Kick: KicksGifted — {}",
+                    chat_msg.system_message.as_deref().unwrap_or("")
+                );
+                let _ = app_handle.emit("chat-message", &chat_msg);
+                if let Some(overlay) = app_handle.try_state::<crate::overlay::OverlayState>() {
+                    let _ = overlay.chat_tx.send(chat_msg.clone());
+                }
+                crate::tts::try_enqueue(app_handle, &chat_msg);
+            }
+        }
+
+        // Служебные события Kick — в чат не выводим:
+        // GoalProgressUpdateEvent (прогресс целей канала),
+        // KicksLeaderboardUpdated (таблица лидеров по подаркам).
+        "GoalProgressUpdateEvent" | "KicksLeaderboardUpdated" => {}
+
         // Подтверждение подписки
         "pusher_internal:subscription_succeeded" => {
             info!("Kick: подписка на канал подтверждена");
@@ -796,6 +877,67 @@ async fn handle_pusher_message<S>(
         // Остальные события игнорируем
         _ => {}
     }
+}
+
+/// Парсит событие `KicksGifted` (подарок Kicks) в `ChatMessage`.
+///
+/// Kicks — монетизация Kick (аналог битов Twitch): зритель отправляет
+/// подарок, опционально с текстом. Показываем системным событием.
+fn parse_kicks_gift(data_str: &str, channel: &str, lang: &str) -> Option<ChatMessage> {
+    let kicks: KicksGiftedData = serde_json::from_str(data_str).ok()?;
+
+    let username = kicks
+        .sender
+        .as_ref()
+        .and_then(|s| s.username.clone())
+        .unwrap_or_else(|| "???".to_string());
+    let color = kicks
+        .sender
+        .as_ref()
+        .and_then(|s| s.username_color.clone())
+        .filter(|c| !c.is_empty());
+    let gift_name = kicks
+        .gift
+        .as_ref()
+        .and_then(|g| g.name.clone())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| "Kicks".to_string());
+    let amount = kicks.gift.as_ref().and_then(|g| g.amount).unwrap_or(1);
+
+    let count_suffix = if amount > 1 {
+        format!(" x{}", amount)
+    } else {
+        String::new()
+    };
+    let system_message = if lang == "en" {
+        format!("{} sent {}{}", username, gift_name, count_suffix)
+    } else {
+        format!("{} отправил {}{}", username, gift_name, count_suffix)
+    };
+
+    // Сообщение от зрителя, приложенное к подарку (если есть)
+    let user_text = kicks.message.unwrap_or_default();
+    let (clean_message, emotes) = extract_kick_emotes(&user_text);
+
+    Some(ChatMessage {
+        id: uuid::Uuid::new_v4().to_string(),
+        platform: Platform::Kick,
+        username: username.to_lowercase(),
+        display_name: username,
+        color,
+        badges: Vec::new(),
+        message: clean_message,
+        emotes,
+        timestamp: SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64,
+        channel: channel.to_string(),
+        reply_to: None,
+        reply_text: None,
+        event_type: Some("kicks_gift".to_string()),
+        system_message: Some(system_message),
+    })
 }
 
 /// Парсит данные сообщения Kick в единый формат `ChatMessage`.
@@ -942,6 +1084,7 @@ fn extract_kick_emotes(content: &str) -> (String, Vec<EmoteRef>) {
                         url,
                         start: char_start,
                         end: char_end,
+                        is_gif: false,
                     });
 
                     // Пропускаем до ']' включительно
@@ -1006,6 +1149,169 @@ mod tests {
     use super::*;
     use futures_util::{SinkExt, StreamExt};
 
+    /// Реальные данные события KicksGifted, снятые с живого канала.
+    const KICKS_GIFT_JSON: &str = r##"{"gift_transaction_id":"5e464b2d-50bf-40c0-9368-480905588816","message":"","sender":{"id":126107007,"username":"ramij700","username_color":"#FFFFFF","profile_picture":"https://kick.com/img/default-profile-pictures/default-avatar-2.webp"},"gift":{"gift_id":"hell_yeah","name":"Hell Yeah","amount":1,"type":"BASIC","tier":"BASIC","character_limit":0,"pinned_time":0},"created_at":"2026-09-06T12:55:59.907762783Z"}"##;
+
+    #[test]
+    fn parses_kicks_gift() {
+        let msg = parse_kicks_gift(KICKS_GIFT_JSON, "nodwingaming", "ru").expect("подарок распарсен");
+        assert_eq!(msg.display_name, "ramij700");
+        assert_eq!(msg.username, "ramij700");
+        assert_eq!(msg.event_type.as_deref(), Some("kicks_gift"));
+        assert_eq!(
+            msg.system_message.as_deref(),
+            Some("ramij700 отправил Hell Yeah")
+        );
+        assert_eq!(msg.color.as_deref(), Some("#FFFFFF"));
+        assert!(msg.message.is_empty(), "текста от зрителя не было");
+
+        // Английская локализация
+        let en = parse_kicks_gift(KICKS_GIFT_JSON, "c", "en").unwrap();
+        assert_eq!(en.system_message.as_deref(), Some("ramij700 sent Hell Yeah"));
+    }
+
+    #[test]
+    fn parses_kicks_gift_with_message_and_amount() {
+        let json = r##"{"message":"Привет всем!","sender":{"username":"viewer1","username_color":"#00FF00"},"gift":{"gift_id":"boom","name":"Boom","amount":5,"tier":"PREMIUM"}}"##;
+        let msg = parse_kicks_gift(json, "c", "ru").expect("распарсен");
+        assert_eq!(msg.system_message.as_deref(), Some("viewer1 отправил Boom x5"));
+        assert_eq!(msg.message, "Привет всем!");
+    }
+
+    #[test]
+    fn kicks_gift_survives_missing_fields() {
+        // Неполные данные не должны ронять приложение
+        let msg = parse_kicks_gift("{}", "c", "ru").expect("парсится с дефолтами");
+        assert_eq!(msg.system_message.as_deref(), Some("??? отправил Kicks"));
+        // Совсем не JSON — просто None, без паники
+        assert!(parse_kicks_gift("not json", "c", "ru").is_none());
+    }
+
+    /// Инвентаризация ВСЕХ событий, которые Kick шлёт в chatroom-канал.
+    /// `cargo test probe_kick_events -- --ignored --nocapture`
+    ///
+    /// Печатает уникальные event-типы, помечая те, что мы НЕ обрабатываем,
+    /// и показывает их сырые данные — так видно новые фичи платформы.
+    #[tokio::test]
+    #[ignore]
+    async fn probe_kick_events() {
+        let slug = std::env::var("PROBE_KICK").unwrap_or_else(|_| "suspendas".to_string());
+        let secs: u64 = std::env::var("PROBE_SECS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(90);
+
+        // События, которые приложение сейчас понимает
+        let handled = [
+            "App\\Events\\ChatMessageEvent",
+            "App\\Events\\ChatMessageSentEvent",
+            "App\\Events\\MessageDeletedEvent",
+            "App\\Events\\UserBannedEvent",
+            "App\\Events\\ChatroomClearEvent",
+            "App\\Events\\SubscriptionEvent",
+            "App\\Events\\GiftedSubscriptionsEvent",
+        ];
+
+        // Достаём и chatroom_id, и channel_id — уведомления (закрепы, опросы,
+        // награды) Kick шлёт в канал вещателя channel.{channel_id}, а не в чат
+        let client = reqwest::Client::builder()
+            .user_agent(BROWSER_USER_AGENT)
+            .timeout(std::time::Duration::from_secs(15))
+            .cookie_store(true)
+            .use_rustls_tls()
+            .build()
+            .unwrap();
+        let _ = client.get("https://kick.com/").send().await;
+        let body = client
+            .get(format!("https://kick.com/api/v2/channels/{}", slug))
+            .header("Accept", "application/json")
+            .send()
+            .await
+            .expect("kick api")
+            .text()
+            .await
+            .expect("body");
+        let v: serde_json::Value = serde_json::from_str(&body).expect("json");
+        let chatroom_id = v["chatroom"]["id"].as_u64().expect("chatroom id");
+        let channel_id = v["id"].as_u64().expect("channel id");
+        println!("chatroom_id={} channel_id={}", chatroom_id, channel_id);
+
+        let (ws, _) = tokio_tungstenite::connect_async(KICK_PUSHER_URL)
+            .await
+            .expect("Pusher connect");
+        let (mut write, mut read) = ws.split();
+
+        let mut seen: std::collections::BTreeMap<String, (usize, Vec<String>)> = Default::default();
+        let deadline = tokio::time::sleep(std::time::Duration::from_secs(secs));
+        tokio::pin!(deadline);
+
+        loop {
+            tokio::select! {
+                _ = &mut deadline => break,
+                msg = read.next() => match msg {
+                    Some(Ok(Message::Text(text))) => {
+                        if let Ok(pm) = serde_json::from_str::<PusherMessage>(&text) {
+                            if pm.event == "pusher:connection_established" {
+                                for ch in [
+                                    format!("chatrooms.{}.v2", chatroom_id),
+                                    format!("chatrooms.{}", chatroom_id),
+                                    format!("chatroom_{}", chatroom_id),
+                                    format!("channel.{}", channel_id),
+                                    format!("channel_{}", channel_id),
+                                    format!("predictions-channel-{}", channel_id),
+                                ] {
+                                    let sub = serde_json::json!({
+                                        "event": "pusher:subscribe", "data": { "channel": ch }
+                                    });
+                                    let _ = write.send(Message::Text(sub.to_string().into())).await;
+                                }
+                                continue;
+                            }
+                            if pm.event.starts_with("pusher") { continue; }
+
+                            let raw = pm.data.as_str().map(|s| s.to_string())
+                                .unwrap_or_else(|| pm.data.to_string());
+                            // Ключ — событие + канал: важно знать, на какой
+                            // подписке оно приходит (чат или канал вещателя)
+                            let key = format!(
+                                "{}   @{}",
+                                pm.event,
+                                pm.channel.clone().unwrap_or_else(|| "?".into())
+                            );
+                            let entry = seen.entry(key)
+                                .or_insert((0, Vec::new()));
+                            entry.0 += 1;
+                            // Храним до 3 разных примеров — видно вариативность полей
+                            if entry.1.len() < 3 && !entry.1.contains(&raw) {
+                                entry.1.push(raw);
+                            }
+                        }
+                    }
+                    Some(Err(_)) | None => break,
+                    _ => {}
+                }
+            }
+        }
+
+        println!("\n=== События Kick за {}с на канале {} ===", secs, slug);
+        for (event, (count, samples)) in &seen {
+            let name = event.split("   @").next().unwrap_or(event);
+            let known = handled.contains(&name);
+            println!(
+                "{} {:<70} x{}",
+                if known { "  [есть]" } else { "* [НОВОЕ]" },
+                event,
+                count
+            );
+            if !known {
+                for s in samples {
+                    println!("      данные: {}", s.chars().take(900).collect::<String>());
+                }
+            }
+        }
+        println!("Всего типов: {}", seen.len());
+    }
+
     /// Ручная сетевая проверка Kick: chatroom_id + Pusher WebSocket.
     /// `cargo test probe_kick_pusher -- --ignored --nocapture`
     ///
@@ -1016,13 +1322,14 @@ mod tests {
     async fn probe_kick_pusher() {
         let slug = std::env::var("PROBE_KICK").unwrap_or_else(|_| "suspendas".to_string());
 
-        let chatroom_id = match fetch_chatroom_id(&slug).await {
-            Ok(id) => {
-                println!("chatroom_id({}) = {}", slug, id);
-                id
+        let (chatroom_id, channel_id) = match fetch_chatroom_id(&slug).await {
+            Ok(ids) => {
+                println!("chatroom_id({}) = {} channel_id={:?}", slug, ids.0, ids.1);
+                ids
             }
             Err(e) => panic!("fetch_chatroom_id сломан: {}", e),
         };
+        let _ = channel_id;
 
         let (ws, _) = tokio_tungstenite::connect_async(KICK_PUSHER_URL)
             .await

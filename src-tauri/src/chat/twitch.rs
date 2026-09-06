@@ -314,8 +314,13 @@ fn parse_privmsg(raw: &str, channel: &str) -> Option<ChatMessage> {
     // Извлекаем бейджи
     let badges = parse_badges(&tags);
 
-    // Извлекаем эмоуты
-    let emotes = parse_emotes(&tags, &message);
+    // Эмоуты + GIF (тег `gifs`) в одном списке, отсортированном по позиции
+    let mut emotes = parse_emotes(&tags, &message);
+    let gifs = parse_gifs(&tags, &message);
+    if !gifs.is_empty() {
+        emotes.extend(gifs);
+        emotes.sort_by_key(|e| e.start);
+    }
 
     // Временная метка
     let timestamp = tags
@@ -778,12 +783,73 @@ fn parse_emotes(tags: &[(&str, &str)], message: &str) -> Vec<EmoteRef> {
                 url,
                 start,
                 end,
+                is_gif: false,
             });
         }
     }
 
     // Сортируем по позиции начала (для правильной замены в тексте)
     result.sort_by_key(|e| e.start);
+    result
+}
+
+/// Извлекает GIF из IRC тега `gifs` (фича Twitch с июля 2026).
+///
+/// Формат: `<start>-<end>|<gifID>|<gifURL>`, несколько через запятую.
+/// Позиции — индексы символов (как у эмоутов), текст сообщения при этом
+/// содержит описание вида `[Y A Y Yes GIF by Djemilah Birnie]`.
+fn parse_gifs(tags: &[(&str, &str)], message: &str) -> Vec<EmoteRef> {
+    let gifs_str = tags
+        .iter()
+        .find(|(k, _)| *k == "gifs")
+        .map(|(_, v)| *v)
+        .unwrap_or("");
+
+    if gifs_str.is_empty() {
+        return Vec::new();
+    }
+
+    let chars: Vec<char> = message.chars().collect();
+    let mut result = Vec::new();
+
+    for entry in gifs_str.split(',') {
+        // URL содержит символы '|' крайне маловероятно, но splitn защищает
+        let mut parts = entry.splitn(3, '|');
+        let positions = match parts.next() {
+            Some(p) if !p.is_empty() => p,
+            _ => continue,
+        };
+        let gif_id = parts.next().unwrap_or("");
+        let gif_url = match parts.next() {
+            Some(u) if u.starts_with("https://") => u,
+            _ => continue, // без валидного URL показывать нечего
+        };
+
+        let mut range = positions.splitn(2, '-');
+        let start: usize = match range.next().and_then(|s| s.parse().ok()) {
+            Some(s) => s,
+            None => continue,
+        };
+        let end: usize = match range.next().and_then(|e| e.parse().ok()) {
+            Some(e) => e,
+            None => continue,
+        };
+        if start > end || end >= chars.len() {
+            continue; // позиции не бьются с текстом — пропускаем
+        }
+
+        let code: String = chars[start..=end].iter().collect();
+
+        result.push(EmoteRef {
+            id: gif_id.to_string(),
+            code,
+            url: gif_url.to_string(),
+            start,
+            end,
+            is_gif: true,
+        });
+    }
+
     result
 }
 
@@ -848,6 +914,54 @@ fn handle_clearchat(raw: &str, app_handle: &tauri::AppHandle) {
 mod tests {
     use super::*;
     use futures_util::{SinkExt, StreamExt};
+
+    /// Пример GIF-сообщения из официальной документации Twitch IRC.
+    const GIF_LINE: &str = "@badge-info=subscriber/30;badges=broadcaster/1,subscriber/0;color=#033700;display-name=TwitchDev;emotes=;first-msg=0;flags=;gifs=0-33|joSNxeswxuc74Juo8X|https://media4.giphy.com/media/joSNxeswxuc74Juo8X/giphy.gif?cid=095d7a5d&ep=v1_gifs_trending&rid=giphy.gif&ct=g;id=401abf17-7e99-45d6-9bdf-43934e839327;mod=0;returning-chatter=0;room-id=12826;subscriber=1;tmi-sent-ts=1783632907018;turbo=0;user-id=141981764;user-type= :twitchdev!twitchdev@twitchdev.tmi.twitch.tv PRIVMSG #twitch :[Y A Y Yes GIF by Djemilah Birnie]";
+
+    #[test]
+    fn parses_gif_message() {
+        let msg = parse_privmsg(GIF_LINE, "twitch").expect("сообщение распарсено");
+        assert_eq!(msg.message, "[Y A Y Yes GIF by Djemilah Birnie]");
+        assert_eq!(msg.emotes.len(), 1, "GIF должен попасть в emotes");
+
+        let gif = &msg.emotes[0];
+        assert!(gif.is_gif, "помечен как GIF");
+        assert_eq!(gif.id, "joSNxeswxuc74Juo8X");
+        assert!(gif.url.starts_with("https://media4.giphy.com/"), "url: {}", gif.url);
+        // URL не должен обрезаться по '&' из query-строки
+        assert!(gif.url.contains("ct=g"), "URL обрезан: {}", gif.url);
+        assert_eq!((gif.start, gif.end), (0, 33));
+        // Позиции покрывают весь текст-описание
+        assert_eq!(msg.message.chars().count(), 34);
+    }
+
+    #[test]
+    fn ignores_malformed_gif_tag() {
+        // Позиции за пределами текста, битый URL, мусор — ничего не падает
+        for bad in [
+            "gifs=0-999|abc|https://media.giphy.com/x.gif",
+            "gifs=|abc|https://media.giphy.com/x.gif",
+            "gifs=0-3|abc|ftp://evil/x.gif",
+            "gifs=garbage",
+        ] {
+            let line = format!(
+                "@{} :u!u@u.tmi.twitch.tv PRIVMSG #c :short",
+                bad
+            );
+            let msg = parse_privmsg(&line, "c").expect("парсится");
+            assert!(msg.emotes.is_empty(), "не должно быть GIF для: {}", bad);
+        }
+    }
+
+    #[test]
+    fn keeps_emotes_and_gifs_sorted() {
+        // Эмоут в начале, GIF после — оба в одном списке по позициям
+        let line = "@emotes=25:0-4;gifs=6-9|gid|https://media.giphy.com/a.gif :u!u@u.tmi.twitch.tv PRIVMSG #c :Kappa [gif]";
+        let msg = parse_privmsg(line, "c").expect("парсится");
+        assert_eq!(msg.emotes.len(), 2);
+        assert!(!msg.emotes[0].is_gif && msg.emotes[0].start == 0);
+        assert!(msg.emotes[1].is_gif && msg.emotes[1].start == 6);
+    }
 
     /// Ручная сетевая проверка анонимного подключения к Twitch IRC:
     /// `cargo test probe_twitch_irc -- --ignored --nocapture`

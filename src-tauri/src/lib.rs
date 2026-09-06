@@ -287,8 +287,8 @@ async fn connect_kick(
     // Обновляем текущий канал
     *state.current_channel.lock().await = Some(channel.clone());
 
-    // Получаем chatroom_id через Kick API
-    let chatroom_id = chat::kick::fetch_chatroom_id(&channel).await?;
+    // Получаем chatroom_id (+ channel_id для Kicks-подарков) через Kick API
+    let (chatroom_id, kick_channel_id) = chat::kick::fetch_chatroom_id(&channel).await?;
 
     // Клонируем Arc для фоновой задачи
     let should_stop = Arc::clone(&state.should_stop);
@@ -304,7 +304,14 @@ async fn connect_kick(
 
     // Запускаем чтение чата в фоновой задаче
     let handle = tokio::spawn(async move {
-        chat::kick::connect_and_listen(channel, chatroom_id, app_handle, should_stop).await;
+        chat::kick::connect_and_listen(
+            channel,
+            chatroom_id,
+            kick_channel_id,
+            app_handle,
+            should_stop,
+        )
+        .await;
     });
     *state.task_handle.lock().await = Some(handle);
 
@@ -694,6 +701,8 @@ pub fn run() {
         // Плагины
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         // Состояния (кроме ConfigState — инициализируется в setup)
         .manage(TwitchState::default())
         .manage(KickState::default())

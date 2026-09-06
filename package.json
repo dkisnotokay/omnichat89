@@ -1,6 +1,6 @@
 {
   "name": "omnichat",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Lightweight stream chat overlay for Twitch, Kick and more",
   "type": "module",
   "scripts": {
@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-clipboard-manager": "^2.3.2"
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.11.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5",

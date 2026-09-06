@@ -12,6 +12,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { writeText } from "@tauri-apps/plugin-clipboard-manager";
   import { settings, resetSettings, type AppSettings } from "../stores/settings";
+  import { updater, checkForUpdate } from "../stores/updater";
   import { getStrings } from "../i18n";
 
   const appWindow = getCurrentWindow();
@@ -90,6 +91,19 @@
 
   function handleReset() {
     resetSettings();
+  }
+
+  /** Результат ручной проверки обновлений (показывается 4 секунды) */
+  let updateMsg = $state("");
+
+  async function handleCheckUpdate() {
+    updateMsg = "";
+    const found = await checkForUpdate(false);
+    if (!found) {
+      // Обновления нет либо ошибка — обе ситуации сообщаем текстом
+      updateMsg = $updater.stage === "error" ? t.updateFailed : t.updateNoUpdates;
+      setTimeout(() => { updateMsg = ""; }, 4000);
+    }
   }
 </script>
 
@@ -870,9 +884,21 @@
     </div>
   </div>
 
-  <!-- Подвал: сброс + версия -->
+  <!-- Подвал: сброс + обновления + версия -->
   <div class="settings-footer">
     <button class="reset-btn" onclick={handleReset}>{t.resetSettings}</button>
+    <button
+      class="reset-btn update-check-btn"
+      onclick={handleCheckUpdate}
+      disabled={$updater.stage === "checking" || $updater.stage === "downloading"}
+    >
+      {$updater.stage === "checking" ? t.updateChecking : t.updateCheck}
+    </button>
+    {#if updateMsg}
+      <span class="update-msg">{updateMsg}</span>
+    {:else if $updater.stage === "available"}
+      <span class="update-msg found">{t.updateAvailable} {$updater.version}</span>
+    {/if}
     <span class="version">Omnichat89 {appVersion ? `v${appVersion}` : ""}</span>
   </div>
 </div>
@@ -1253,5 +1279,22 @@
   .version {
     font-size: 0.7rem;
     color: var(--text-muted, #888);
+  }
+
+  /* Проверка обновлений в подвале настроек */
+  .update-check-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .update-msg {
+    font-size: 0.72rem;
+    color: var(--text-muted, #888);
+    text-align: center;
+  }
+
+  .update-msg.found {
+    color: #2ecc71;
+    font-weight: 600;
   }
 </style>

@@ -216,16 +216,20 @@ fn prepare_text(msg: &ChatMessage, settings: &TtsSettings) -> String {
         }
     }
 
-    // Удалить эмоуты (по позициям)
-    if !settings.read_emotes && !msg.emotes.is_empty() {
+    // Удалить эмоуты (по позициям). GIF вырезаем всегда: их «текст» — это
+    // служебное описание вида "[Y A Y Yes GIF by ...]", читать его бессмысленно.
+    let strip_emotes = !settings.read_emotes;
+    let has_gif = msg.emotes.iter().any(|e| e.is_gif);
+    if !msg.emotes.is_empty() && (strip_emotes || has_gif) {
         let chars: Vec<char> = text.chars().collect();
         let mut result = String::new();
         for (ch_idx, ch) in chars.iter().enumerate() {
-            let is_emote = msg
+            let is_stripped = msg
                 .emotes
                 .iter()
+                .filter(|e| strip_emotes || e.is_gif)
                 .any(|e| ch_idx >= e.start && ch_idx <= e.end);
-            if !is_emote {
+            if !is_stripped {
                 result.push(*ch);
             } else if !result.ends_with(' ') {
                 result.push(' ');

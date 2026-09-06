@@ -19,6 +19,8 @@
     "core:event:default",
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
+    "updater:default",
+    "process:allow-restart",
     "core:window:allow-show",
     "core:window:allow-hide",
     "core:window:allow-is-visible"

@@ -1,6 +1,6 @@
 [package]
 name = "omnichat"
-version = "0.2.1"
+version = "0.3.0"
 description = "Lightweight stream chat overlay for Twitch, Kick and more"
 authors = ["dkisnotokay"]
 edition = "2021"
@@ -17,6 +17,9 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon", "image-ico"] }
 tauri-plugin-opener = "2"
 tauri-plugin-clipboard-manager = "2"
+# Автообновление: проверка latest.json в GitHub Releases + перезапуск
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 # РЎРµСЂРёР°Р»РёР·Р°С†РёСЏ JSON
 serde = { version = "1", features = ["derive"] }

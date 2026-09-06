@@ -28,3 +28,7 @@ npm-debug.log*
 docs/
 CLAUDE.md
 .claude/
+
+# Updater signing keys (must never be committed)
+*.key
+*.key.pub

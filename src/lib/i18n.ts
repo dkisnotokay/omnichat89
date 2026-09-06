@@ -143,6 +143,17 @@ export interface I18nStrings {
   ctxCopy: string;
   ctxPaste: string;
   ctxSelectAll: string;
+
+  // Updater
+  updateAvailable: string;
+  updateNow: string;
+  updateLater: string;
+  updateDownloading: string;
+  updateReady: string;
+  updateCheck: string;
+  updateChecking: string;
+  updateNoUpdates: string;
+  updateFailed: string;
 }
 
 const ru: I18nStrings = {
@@ -266,6 +277,16 @@ const ru: I18nStrings = {
   ctxCopy: "Копировать",
   ctxPaste: "Вставить",
   ctxSelectAll: "Выделить всё",
+
+  updateAvailable: "Доступна версия",
+  updateNow: "Обновить",
+  updateLater: "Позже",
+  updateDownloading: "Загрузка обновления",
+  updateReady: "Перезапуск...",
+  updateCheck: "Проверить обновления",
+  updateChecking: "Проверка...",
+  updateNoUpdates: "У вас последняя версия",
+  updateFailed: "Не удалось обновить",
 };
 
 const en: I18nStrings = {
@@ -389,6 +410,16 @@ const en: I18nStrings = {
   ctxCopy: "Copy",
   ctxPaste: "Paste",
   ctxSelectAll: "Select all",
+
+  updateAvailable: "Version available:",
+  updateNow: "Update",
+  updateLater: "Later",
+  updateDownloading: "Downloading update",
+  updateReady: "Restarting...",
+  updateCheck: "Check for updates",
+  updateChecking: "Checking...",
+  updateNoUpdates: "You are up to date",
+  updateFailed: "Update failed",
 };
 
 const strings: Record<Lang, I18nStrings> = { ru, en };

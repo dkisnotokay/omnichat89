@@ -21,6 +21,8 @@ export interface EmoteRef {
   url: string;
   start: number;
   end: number;
+  /** GIF (Twitch) — рендерится крупнее обычного эмоута */
+  is_gif?: boolean;
 }
 
 /** Сообщение чата (единый формат для всех платформ) */

@@ -13,11 +13,12 @@
   import kickIcon from "../assets/kick-icon.svg";
   import { kickBadgeUrls } from "../assets/kick-badges";
 
-  /** Сегмент сообщения: текст или эмоут */
+  /** Сегмент сообщения: текст, эмоут или GIF */
   interface MessageSegment {
     type: "text" | "emote";
     content: string;
     url?: string;
+    isGif?: boolean;
   }
 
   /** Пропсы компонента */
@@ -43,6 +44,8 @@
   const isHighlighted = $derived(msg.event_type === "highlighted");
   /** /me сообщение (ACTION) */
   const isAction = $derived(msg.event_type === "action");
+  /** Подарок Kicks (Kick) — выделяем цветом платформы */
+  const isKicksGift = $derived(msg.event_type === "kicks_gift");
 
   /** Цвет ника: используем заданный или генерируем по алгоритму Twitch */
   const nickColor = $derived(msg.color || twitchDefaultColor(msg.username));
@@ -69,11 +72,12 @@
         if (text) segments.push({ type: "text", content: text });
       }
 
-      // Сам эмоут
+      // Сам эмоут (или GIF)
       segments.push({
         type: "emote",
         content: emote.code,
         url: emote.url,
+        isGif: emote.is_gif,
       });
 
       lastIndex = emote.end + 1; // end — включительно
@@ -169,6 +173,7 @@
 <div
   class="chat-message"
   class:system-event={isSystemEvent}
+  class:kicks-gift={isKicksGift}
   class:highlighted-msg={isHighlighted}
   class:msg-fading={fading}
 >
@@ -247,6 +252,7 @@
           {#if segment.type === "emote"}
             <img
               class="emote-img"
+              class:gif-img={segment.isGif}
               src={segment.url}
               alt={segment.content}
               title={segment.content}
@@ -384,6 +390,16 @@
     object-fit: contain;
   }
 
+  /* --- GIF (Twitch) — крупнее эмоута, с новой строки --- */
+  .emote-img.gif-img {
+    display: block;
+    height: auto;
+    max-height: 150px;
+    max-width: 100%;
+    margin: 3px 0;
+    border-radius: 6px;
+  }
+
   /* --- Системное событие (sub, raid, gift) --- */
   .system-event {
     border-left: 3px solid #9146ff;
@@ -396,6 +412,16 @@
     color: #b4a0d4;
     padding: 2px 0;
     font-weight: 500;
+  }
+
+  /* --- Подарок Kicks (Kick) — зелёный цвет платформы --- */
+  .system-event.kicks-gift {
+    border-left-color: #53fc18;
+    background: rgba(83, 252, 24, 0.09);
+  }
+
+  .kicks-gift .system-banner {
+    color: #7ee65a;
   }
 
   /* --- Выделенное сообщение (highlighted) --- */
