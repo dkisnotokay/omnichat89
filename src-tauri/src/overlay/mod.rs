@@ -29,6 +29,13 @@ use tokio_stream::StreamExt;
 /// HTML-страница оверлея (встроена при компиляции).
 const OVERLAY_HTML: &str = include_str!("page.html");
 
+/// Content-Security-Policy для страницы оверлея — второй рубеж защиты после
+/// экранирования. Даже если в разметку что-то просочится, внешний скрипт
+/// подгрузить нельзя (`script-src` без `https:`), а увести данные наружу —
+/// тоже (`connect-src` только свой origin, он нужен для SSE).
+/// `'unsafe-inline'` в script-src требуется самой странице: её скрипт встроенный.
+const OVERLAY_CSP: &str = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https://static-cdn.jtvnw.net https://files.kick.com https://*.giphy.com data:; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'";
+
 /// Query параметры для аутентификации overlay запросов.
 #[derive(Deserialize)]
 struct OverlayQuery {
@@ -139,7 +146,7 @@ async fn serve_overlay_page(
     if !check_auth(&query, &state.overlay_secret) {
         return (StatusCode::FORBIDDEN, Html("403 Forbidden")).into_response();
     }
-    Html(OVERLAY_HTML).into_response()
+    ([(header::CONTENT_SECURITY_POLICY, OVERLAY_CSP)], Html(OVERLAY_HTML)).into_response()
 }
 
 /// GET /overlay/events — SSE поток сообщений чата (требует ?token=secret).

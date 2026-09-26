@@ -9,6 +9,7 @@
   import type { ChatMessage, EmoteRef } from "../types";
   import { badgeMap } from "../stores/chat";
   import { settings } from "../stores/settings";
+  import { safeColor, safeImageUrl } from "../security";
   import twitchIcon from "../assets/twitch-icon.svg";
   import kickIcon from "../assets/kick-icon.svg";
   import { kickBadgeUrls } from "../assets/kick-badges";
@@ -48,7 +49,7 @@
   const isKicksGift = $derived(msg.event_type === "kicks_gift");
 
   /** Цвет ника: используем заданный или генерируем по алгоритму Twitch */
-  const nickColor = $derived(msg.color || twitchDefaultColor(msg.username));
+  const nickColor = $derived(safeColor(msg.color) || twitchDefaultColor(msg.username));
 
   /**
    * Разбивает текст сообщения на сегменты: текст и эмоуты.
@@ -76,7 +77,7 @@
       segments.push({
         type: "emote",
         content: emote.code,
-        url: emote.url,
+        url: safeImageUrl(emote.url),
         isGif: emote.is_gif,
       });
 
@@ -213,9 +214,9 @@
     <!-- Бейджи пользователя (Twitch: API badge map / Kick: локальные SVG / emoji-фоллбэк) -->
     {#if showBadges}
       {#each msg.badges as badge}
-        {@const badgeUrl = $badgeMap[`${badge.id}/${badge.version}`]
+        {@const badgeUrl = safeImageUrl($badgeMap[`${badge.id}/${badge.version}`]
           || (msg.platform === "kick" ? kickBadgeUrls[badge.id] : "")
-          || badge.image_url}
+          || badge.image_url)}
         {#if badgeUrl}
           <img
             class="badge-img"
@@ -249,7 +250,7 @@
     {:else}
       <span class="message-text" class:action-text={isAction}>
         {#each segments as segment}
-          {#if segment.type === "emote"}
+          {#if segment.type === "emote" && segment.url}
             <img
               class="emote-img"
               class:gif-img={segment.isGif}
