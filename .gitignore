@@ -36,3 +36,7 @@ CLAUDE.md
 # Temp commit message files
 commit-msg.txt
 release-notes-*.md
+
+# Секреты (на случай, если файл окажется в проекте — токен должен жить в ~)
+.omnichat-tg.json
+*-tg.json
