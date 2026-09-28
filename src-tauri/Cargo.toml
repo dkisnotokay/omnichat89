@@ -1,6 +1,6 @@
 [package]
 name = "omnichat"
-version = "0.3.1"
+version = "0.3.2"
 description = "Lightweight stream chat overlay for Twitch, Kick and more"
 authors = ["dkisnotokay"]
 edition = "2021"
@@ -71,6 +71,10 @@ windows = { version = "0.61", features = ["Media_SpeechSynthesis", "Media_Core",
 
 # Чтение реестра Windows (список установленных шрифтов)
 winreg = "0.55"
+
+# Запрет второго экземпляра: второй запуск раскрывает окно первого.
+# Иначе второй процесс не может занять порт оверлея и молча работает без него.
+tauri-plugin-single-instance = "2.5.0"
 
 [profile.release]
 lto = true

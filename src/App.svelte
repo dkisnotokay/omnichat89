@@ -38,6 +38,7 @@
   import { auth, authReady, initAuth, loginTwitch, logoutTwitch } from "./lib/stores/auth";
   import { initBadgeListener } from "./lib/stores/chat";
   import { ttsStatus, initTtsListeners, ttsSkip, ttsClearQueue } from "./lib/stores/tts";
+  import { overlayServerStatus, initOverlayStatusListener } from "./lib/stores/overlay";
   import { updater, initUpdaterCheck, installUpdate, dismissUpdate } from "./lib/stores/updater";
   import { getStrings } from "./lib/i18n";
   import ContextMenu from "./lib/components/ContextMenu.svelte";
@@ -129,6 +130,7 @@
       initChatListeners();
       initBadgeListener();
       initTtsListeners();
+      initOverlayStatusListener();
       initUpdaterCheck();
 
       // Загружаем настройки, затем сразу подключаемся к сохранённым каналам
@@ -535,6 +537,14 @@
       {/if}
     {/if}
 
+    <!-- Оверлей не смог занять порт: чат в OBS работать не будет -->
+    {#if $overlayServerStatus && !$overlayServerStatus.running}
+      <div class="overlay-warning" title={t.overlayPortBusyHint}>
+        <span class="overlay-warning-title">⚠ {t.overlayPortBusy} ({$overlayServerStatus.port})</span>
+        <span class="overlay-warning-hint">{t.overlayPortBusyHint}</span>
+      </div>
+    {/if}
+
     <!-- TTS Controls (видимый когда TTS включён) -->
     {#if $settings.ttsEnabled}
       <div class="tts-bar">
@@ -809,6 +819,32 @@
     height: 100%;
     background: var(--accent-color, #667eea);
     transition: width 0.2s;
+  }
+
+  /* --- Предупреждение о занятом порте оверлея --- */
+  .overlay-warning {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 12px;
+    /* Сплошной цвет, как у соседних панелей: фон окна прозрачный,
+       через полупрозрачную подложку просвечивал бы рабочий стол */
+    background: #2e2114;
+    border-left: 3px solid #e67e22;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+  }
+
+  .overlay-warning-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #e67e22;
+  }
+
+  .overlay-warning-hint {
+    font-size: 0.7rem;
+    color: var(--text-muted, #888);
+    line-height: 1.3;
   }
 
   /* --- TTS Bar --- */

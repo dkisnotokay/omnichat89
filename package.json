@@ -1,6 +1,6 @@
 {
   "name": "omnichat",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Lightweight stream chat overlay for Twitch, Kick and more",
   "type": "module",
   "scripts": {

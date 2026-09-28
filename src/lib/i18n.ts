@@ -107,6 +107,8 @@ export interface I18nStrings {
   copyUrl: string;
   obsHint: string;
   obsDimensions: string;
+  overlayPortBusy: string;
+  overlayPortBusyHint: string;
   overlayHideDelay: string;
   overlayHideDelayHint: string;
   hideDelayOff: string;
@@ -246,6 +248,8 @@ const ru: I18nStrings = {
   copyUrl: "Копировать URL",
   obsHint: "Вставьте этот URL в OBS → Sources → Browser",
   obsDimensions: "Рекомендуемый размер: 400 × 600 px",
+  overlayPortBusy: "Оверлей не запустился: порт занят",
+  overlayPortBusyHint: "Скорее всего, уже открыт другой экземпляр Omnichat89 — закройте его (проверьте значок в трее) или укажите другой порт. Пока порт занят, чат в OBS обновляться не будет.",
   overlayHideDelay: "Скрывать сообщения через",
   overlayHideDelayHint: "Сообщения плавно исчезают в OBS overlay (и в приложении, если включено ниже)",
   hideDelayOff: "выкл",
@@ -379,6 +383,8 @@ const en: I18nStrings = {
   copyUrl: "Copy URL",
   obsHint: "Paste this URL in OBS → Sources → Browser",
   obsDimensions: "Recommended size: 400 × 600 px",
+  overlayPortBusy: "Overlay failed to start: port is busy",
+  overlayPortBusyHint: "Most likely another copy of Omnichat89 is already running — close it (check the tray icon) or pick a different port. While the port is taken, the chat in OBS will not update.",
   overlayHideDelay: "Hide messages after",
   overlayHideDelayHint: "Messages fade out in the OBS overlay (and in the app if enabled below)",
   hideDelayOff: "off",

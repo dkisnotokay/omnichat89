@@ -18,6 +18,7 @@ use axum::response::{Html, IntoResponse};
 use axum::routing::get;
 use axum::Router;
 use log::{error, info};
+use tauri::Emitter;
 use serde::Deserialize;
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -40,6 +41,30 @@ const OVERLAY_CSP: &str = "default-src 'none'; script-src 'unsafe-inline'; style
 #[derive(Deserialize)]
 struct OverlayQuery {
     token: Option<String>,
+}
+
+/// Статус overlay-сервера для frontend (событие `overlay-server-status`).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct OverlayServerStatus {
+    /// Удалось ли занять порт и запустить сервер
+    pub running: bool,
+    pub port: u16,
+    /// Текст ошибки, если запуск не удался
+    pub error: Option<String>,
+}
+
+/// Последний статус запуска overlay-сервера.
+/// Событие `overlay-server-status` может уйти раньше, чем frontend успеет
+/// подписаться, поэтому статус ещё и хранится — его забирает `get_overlay_status`.
+pub static LAST_OVERLAY_STATUS: std::sync::Mutex<Option<OverlayServerStatus>> =
+    std::sync::Mutex::new(None);
+
+/// Запомнить статус и отправить его во frontend.
+fn publish_status(app_handle: &tauri::AppHandle, status: OverlayServerStatus) {
+    if let Ok(mut last) = LAST_OVERLAY_STATUS.lock() {
+        *last = Some(status.clone());
+    }
+    let _ = app_handle.emit("overlay-server-status", status);
 }
 
 /// Shared state для overlay HTTP-сервера.
@@ -79,7 +104,7 @@ fn build_router(state: OverlayState) -> Router {
 
 /// Запустить HTTP-сервер оверлея на указанном порту.
 /// Использует `tauri::async_runtime::spawn` — безопасно вызывать из setup().
-pub fn start_overlay_server(overlay_state: OverlayState, port: u16) {
+pub fn start_overlay_server(overlay_state: OverlayState, port: u16, app_handle: tauri::AppHandle) {
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     *overlay_state.shutdown_tx.blocking_lock() = Some(tx);
 
@@ -87,12 +112,26 @@ pub fn start_overlay_server(overlay_state: OverlayState, port: u16) {
 
     tauri::async_runtime::spawn(async move {
         let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
-        info!("OBS Overlay сервер запущен на http://{}/overlay", addr);
 
         let listener = match tokio::net::TcpListener::bind(addr).await {
-            Ok(l) => l,
+            Ok(l) => {
+                info!("OBS Overlay сервер запущен на http://{}/overlay", addr);
+                publish_status(&app_handle, OverlayServerStatus {
+                    running: true,
+                    port,
+                    error: None,
+                });
+                l
+            }
             Err(e) => {
                 error!("Не удалось запустить overlay сервер на порту {}: {}", port, e);
+                // Молча работать без оверлея нельзя: в OBS чат просто не появится,
+                // и пользователю неоткуда узнать причину. Сообщаем во frontend.
+                publish_status(&app_handle, OverlayServerStatus {
+                    running: false,
+                    port,
+                    error: Some(e.to_string()),
+                });
                 return;
             }
         };
@@ -106,7 +145,11 @@ pub fn start_overlay_server(overlay_state: OverlayState, port: u16) {
 
 /// Перезапустить overlay сервер на новом порту.
 /// Вызывается из save_settings при изменении overlay_port.
-pub async fn restart_overlay_server(overlay_state: OverlayState, new_port: u16) {
+pub async fn restart_overlay_server(
+    overlay_state: OverlayState,
+    new_port: u16,
+    app_handle: tauri::AppHandle,
+) {
     // 1. Остановить старый сервер
     if let Some(tx) = overlay_state.shutdown_tx.lock().await.take() {
         let _ = tx.send(());
@@ -121,12 +164,24 @@ pub async fn restart_overlay_server(overlay_state: OverlayState, new_port: u16) 
 
     tauri::async_runtime::spawn(async move {
         let addr = std::net::SocketAddr::from(([127, 0, 0, 1], new_port));
-        info!("OBS Overlay сервер перезапущен на http://{}/overlay", addr);
 
         let listener = match tokio::net::TcpListener::bind(addr).await {
-            Ok(l) => l,
+            Ok(l) => {
+                info!("OBS Overlay сервер перезапущен на http://{}/overlay", addr);
+                publish_status(&app_handle, OverlayServerStatus {
+                    running: true,
+                    port: new_port,
+                    error: None,
+                });
+                l
+            }
             Err(e) => {
                 error!("Не удалось запустить overlay на порту {}: {}", new_port, e);
+                publish_status(&app_handle, OverlayServerStatus {
+                    running: false,
+                    port: new_port,
+                    error: Some(e.to_string()),
+                });
                 return;
             }
         };

@@ -480,7 +480,12 @@ async fn save_settings(
     // 8. Перезапустить overlay сервер при смене порта
     if new_settings.overlay_port != old_overlay_port {
         if let Some(overlay) = app_handle.try_state::<overlay::OverlayState>() {
-            overlay::restart_overlay_server(overlay.inner().clone(), new_settings.overlay_port).await;
+            overlay::restart_overlay_server(
+                overlay.inner().clone(),
+                new_settings.overlay_port,
+                app_handle.clone(),
+            )
+            .await;
         }
     }
 
@@ -509,6 +514,17 @@ async fn tts_clear_queue(state: tauri::State<'_, tts::TtsState>) -> Result<(), S
         .store(true, std::sync::atomic::Ordering::Relaxed);
     state.notify.notify_one();
     Ok(())
+}
+
+/// Текущий статус overlay-сервера (запускается ли он и на каком порту).
+/// Нужна, потому что событие `overlay-server-status` может уйти до того,
+/// как frontend успеет на него подписаться.
+#[tauri::command]
+async fn get_overlay_status() -> Result<Option<overlay::OverlayServerStatus>, String> {
+    Ok(overlay::LAST_OVERLAY_STATUS
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone())
 }
 
 /// Список голосов Windows для локального TTS движка.
@@ -699,6 +715,18 @@ fn setup_tray(
 pub fn run() {
     tauri::Builder::default()
         // Плагины
+        // Single instance ДОЛЖЕН идти первым: второй запуск приложения не создаёт
+        // новый процесс, а раскрывает окно уже работающего. Без этого второй
+        // экземпляр не мог занять порт оверлея и молча работал без него —
+        // в OBS при этом оставался чат от первого процесса.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            log::info!("Попытка запустить второй экземпляр — раскрываем существующее окно");
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -759,7 +787,7 @@ pub fn run() {
                 overlay_secret: settings.overlay_secret.clone(),
             };
             app.manage(overlay_state.clone());
-            overlay::start_overlay_server(overlay_state, settings.overlay_port);
+            overlay::start_overlay_server(overlay_state, settings.overlay_port, app.handle().clone());
 
             // 6. Запустить фоновый TTS процессор
             tts::start_tts_processor(app.handle().clone());
@@ -792,6 +820,7 @@ pub fn run() {
             tts_clear_queue,
             tts_list_windows_voices,
             list_system_fonts,
+            get_overlay_status,
         ])
         .run(tauri::generate_context!())
         .expect("Ошибка при запуске Omnichat89");
