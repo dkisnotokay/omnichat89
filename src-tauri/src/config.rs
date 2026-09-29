@@ -26,6 +26,11 @@ pub struct AppSettings {
     pub show_viewer_count: bool,
     pub max_messages: u32,
     pub always_on_top: bool,
+    /// При закрытии окна: true — свернуть в трей (программа продолжит работать),
+    /// false — выйти полностью
+    pub close_to_tray: bool,
+    /// Подсказка «свернулось в трей» уже показывалась — больше не показывать
+    pub tray_hint_shown: bool,
     pub bg_opacity: u32,
     pub app_bg_opacity: u32,
     pub text_color: String,
@@ -109,6 +114,8 @@ impl Default for AppSettings {
             show_viewer_count: true,
             max_messages: 500,
             always_on_top: false,
+            close_to_tray: true,
+            tray_hint_shown: false,
             bg_opacity: 100,
             app_bg_opacity: 100,
             text_color: "#e0e0e0".to_string(),

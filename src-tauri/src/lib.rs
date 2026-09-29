@@ -728,6 +728,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
@@ -794,14 +795,70 @@ pub fn run() {
 
             Ok(())
         })
-        // Перехватываем закрытие главного окна → сворачиваем в трей
+        // Закрытие главного окна: свернуть в трей или выйти — по настройке
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" {
-                    api.prevent_close();
-                    let _ = window.hide();
+                if window.label() != "main" {
+                    return; // окно настроек закрывается обычным образом
                 }
-                // Settings окно закрывается нормально
+
+                let app = window.app_handle();
+                let close_to_tray = app
+                    .try_state::<ConfigState>()
+                    .and_then(|cs| cs.settings.try_lock().ok().map(|s| s.close_to_tray))
+                    .unwrap_or(true);
+
+                if !close_to_tray {
+                    // Пользователь выбрал полный выход — чистим overlay и выходим
+                    if let Some(overlay) = app.try_state::<overlay::OverlayState>() {
+                        let _ = overlay.command_tx.send("clear".to_string());
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    app.exit(0);
+                    return;
+                }
+
+                api.prevent_close();
+                let _ = window.hide();
+
+                // Первый раз объясняем, что программа не закрылась, а свернулась:
+                // иначе пользователь считает, что вышел, и запускает вторую копию
+                let show_hint = app
+                    .try_state::<ConfigState>()
+                    .and_then(|cs| cs.settings.try_lock().ok().map(|s| !s.tray_hint_shown))
+                    .unwrap_or(false);
+                if show_hint {
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let mut lang_en = false;
+                        if let Some(config_state) = app.try_state::<ConfigState>() {
+                            let updated = {
+                                let mut s = config_state.settings.lock().await;
+                                s.tray_hint_shown = true;
+                                s.clone()
+                            };
+                            lang_en = updated.language == "en";
+                            let _ = config::save_to_file(&config_state.config_path, &updated);
+                            let _ = app.emit("settings-changed", &updated);
+                        }
+                        // Окно уже скрыто — подсказка может быть только системной
+                        use tauri_plugin_notification::NotificationExt;
+                        let _ = app
+                            .notification()
+                            .builder()
+                            .title(if lang_en {
+                                "Omnichat89 minimised to tray"
+                            } else {
+                                "Omnichat89 свернулся в трей"
+                            })
+                            .body(if lang_en {
+                                "The app keeps running — the OBS overlay stays live. Quit via the tray icon, or change the \"When closing the window\" setting."
+                            } else {
+                                "Программа продолжает работать — чат в OBS обновляется. Выйти можно через значок в трее или изменив настройку «При закрытии окна»."
+                            })
+                            .show();
+                    });
+                }
             }
         })
         // Регистрация команд

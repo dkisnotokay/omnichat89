@@ -2,7 +2,10 @@
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-utils/schema.json",
   "identifier": "default",
   "description": "Разрешения по умолчанию для Omnichat89",
-  "windows": ["main", "settings"],
+  "windows": [
+    "main",
+    "settings"
+  ],
   "permissions": [
     "core:default",
     "opener:default",
@@ -23,6 +26,7 @@
     "process:allow-restart",
     "core:window:allow-show",
     "core:window:allow-hide",
-    "core:window:allow-is-visible"
+    "core:window:allow-is-visible",
+    "notification:default"
   ]
 }

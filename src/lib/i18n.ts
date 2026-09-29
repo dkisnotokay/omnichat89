@@ -62,6 +62,12 @@ export interface I18nStrings {
   // Window
   alwaysOnTop: string;
   alwaysOnTopHint: string;
+  closeAction: string;
+  closeToTray: string;
+  closeToExit: string;
+  closeActionHint: string;
+  trayHintTitle: string;
+  trayHintText: string;
 
   // TTS main
   enableTts: string;
@@ -208,6 +214,12 @@ const ru: I18nStrings = {
 
   alwaysOnTop: "Поверх окон",
   alwaysOnTopHint: "Не работает в полноэкранных приложениях",
+  closeAction: "При закрытии окна",
+  closeToTray: "Свернуть в трей",
+  closeToExit: "Выйти из программы",
+  closeActionHint: "В трее программа продолжает работать: чат в OBS обновляется, доступны TTS и «поверх окон»",
+  trayHintTitle: "Omnichat89 свернулся в трей",
+  trayHintText: "Программа продолжает работать — чат в OBS обновляется. Полностью выйти можно через значок в трее или изменив настройку «При закрытии окна».",
 
   enableTts: "Включить TTS",
   ttsEngine: "Движок озвучки",
@@ -343,6 +355,12 @@ const en: I18nStrings = {
 
   alwaysOnTop: "Always on top",
   alwaysOnTopHint: "Does not work in fullscreen apps",
+  closeAction: "When closing the window",
+  closeToTray: "Minimise to tray",
+  closeToExit: "Quit the app",
+  closeActionHint: "In the tray the app keeps running: the OBS overlay stays live, TTS and always-on-top remain available",
+  trayHintTitle: "Omnichat89 minimised to tray",
+  trayHintText: "The app keeps running — the OBS overlay stays live. To quit completely use the tray icon, or change the \"When closing the window\" setting.",
 
   enableTts: "Enable TTS",
   ttsEngine: "Speech engine",

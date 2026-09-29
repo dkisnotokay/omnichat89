@@ -767,8 +767,11 @@
     align-items: center;
     gap: 8px;
     padding: 6px 12px;
-    background: linear-gradient(90deg, rgba(102, 126, 234, 0.25), rgba(118, 75, 162, 0.25));
-    border-bottom: 1px solid rgba(102, 126, 234, 0.4);
+    /* Сплошной цвет: окно прозрачное, сквозь полупрозрачную подложку
+       просвечивал бы рабочий стол или игра */
+    background: #232a47;
+    border-left: 3px solid #667eea;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     font-size: 0.78rem;
     color: var(--text-color, #e0e0e0);
     flex-shrink: 0;

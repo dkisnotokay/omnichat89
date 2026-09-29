@@ -447,6 +447,23 @@
           <span class="toggle-knob"></span>
         </button>
       </div>
+
+      <!-- Что делать при закрытии окна -->
+      <div class="setting-row">
+        <label class="setting-label" for="closeAction">
+          {t.closeAction}
+          <span class="setting-hint">{t.closeActionHint}</span>
+        </label>
+        <select
+          id="closeAction"
+          class="select-input"
+          value={currentSettings.closeToTray ? "tray" : "exit"}
+          onchange={(e) => update("closeToTray", e.currentTarget.value === "tray")}
+        >
+          <option value="tray">{t.closeToTray}</option>
+          <option value="exit">{t.closeToExit}</option>
+        </select>
+      </div>
     </div>
 
     <!-- OBS Overlay -->

@@ -21,6 +21,10 @@ export interface AppSettings {
   showViewerCount: boolean;
   maxMessages: number;
   alwaysOnTop: boolean;
+  /** При закрытии окна: true — свернуть в трей, false — выйти */
+  closeToTray: boolean;
+  /** Подсказка о сворачивании в трей уже показана */
+  trayHintShown: boolean;
   bgOpacity: number;
   appBgOpacity: number;
   textColor: string;
@@ -93,6 +97,8 @@ export const defaultSettings: AppSettings = {
   showViewerCount: true,
   maxMessages: 500,
   alwaysOnTop: false,
+  closeToTray: true,
+  trayHintShown: false,
   bgOpacity: 100,
   appBgOpacity: 100,
   textColor: "#e0e0e0",
